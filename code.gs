@@ -97,35 +97,20 @@ function getSpreadsheets() {
   }
 }
 
-function findMawbGroupBoundaries(ws, mawb) {
+function findLastRowOfMawb(ws, mawb) {
   const lastRow = ws.getLastRow();
   if (lastRow === 0) {
-    return null;
+    return 0;
   }
   const mawbColumn = ws.getRange(1, 1, lastRow, 1).getValues();
   const normalizedMawb = _norm(mawb);
-  let startRow = -1;
-  let endRow = -1;
 
-  for (let i = 0; i < lastRow; i++) {
+  for (let i = lastRow - 1; i >= 0; i--) {
     if (_norm(mawbColumn[i][0]) === normalizedMawb) {
-      if (startRow === -1) {
-        startRow = i + 1;
-      }
-      endRow = i + 1;
-    } else {
-      if (startRow !== -1) {
-        // We've found the end of the group
-        break;
-      }
+      return i + 1; // Retorna o número da linha (1-based)
     }
   }
-
-  if (startRow === -1) {
-    return null;
-  }
-
-  return { startRow, endRow };
+  return 0; // MAWB não encontrado
 }
 
 function findLastDataRow(ws) {
@@ -385,13 +370,13 @@ function saveEntries(payload) {
 
     // Inserts com lógica de agrupamento por MAWB
     if (toInsert.length) {
-      const boundaries = findMawbGroupBoundaries(ws, mawb);
+      const lastMawbRow = findLastRowOfMawb(ws, mawb);
       let insertRow;
 
-      if (boundaries) {
+      if (lastMawbRow > 0) {
         // MAWB existente, insere logo abaixo
-        insertRow = boundaries.endRow + 1;
-        ws.insertRowsAfter(boundaries.endRow, toInsert.length);
+        insertRow = lastMawbRow + 1;
+        ws.insertRowsAfter(lastMawbRow, toInsert.length);
       } else {
         // Novo MAWB, encontra a última linha com dados e adiciona separador
         const lastDataRow = findLastDataRow(ws);
