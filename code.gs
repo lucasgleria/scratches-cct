@@ -97,43 +97,49 @@ function getSpreadsheets() {
   }
 }
 
-/**
- * Encontra a linha correta para inserção, garantindo uma linha em branco como separador.
- * A função localiza a última linha que contém dados, ignorando quaisquer linhas em branco
- * no final da planilha, e retorna a posição para a nova inserção (última linha com dados + 2).
- */
-function findInsertRowWithBlankSeparator(ws) {
-  const maxRows = ws.getMaxRows();
+function findMawbGroupBoundaries(ws, mawb) {
   const lastRow = ws.getLastRow();
-
   if (lastRow === 0) {
-    return 1; // Planilha vazia, insere na primeira linha
+    return null;
   }
+  const mawbColumn = ws.getRange(1, 1, lastRow, 1).getValues();
+  const normalizedMawb = _norm(mawb);
+  let startRow = -1;
+  let endRow = -1;
 
-  let lastDataRow = lastRow;
-  // Se a última linha já tem conteúdo, não precisamos procurar para trás.
-  // Se estiver vazia, procuramos a última com dados.
-  if (ws.getRange(lastRow, 1, 1, ws.getLastColumn()).getValues()[0].every(c => _norm(c) === '')) {
-    const range = ws.getRange(1, 1, lastRow, ws.getLastColumn()).getValues();
-    for (let i = lastRow - 1; i >= 0; i--) {
-      if (!range[i].every(c => _norm(c) === '')) {
-        lastDataRow = i + 1;
-        break;
+  for (let i = 0; i < lastRow; i++) {
+    if (_norm(mawbColumn[i][0]) === normalizedMawb) {
+      if (startRow === -1) {
+        startRow = i + 1;
       }
-      if (i === 0) { // Chegou no topo e não achou dados
-        lastDataRow = 0;
+      endRow = i + 1;
+    } else {
+      if (startRow !== -1) {
+        // We've found the end of the group
+        break;
       }
     }
   }
 
-  // Se não encontrou nenhuma linha com dados (ex: planilha só com linhas em branco),
-  // insere na primeira linha.
-  if (lastDataRow === 0) {
-    return 1;
+  if (startRow === -1) {
+    return null;
   }
 
-  // Insere duas linhas após a última linha com dados para criar o separador.
-  return lastDataRow + 2;
+  return { startRow, endRow };
+}
+
+function findLastDataRow(ws) {
+  const lastRow = ws.getLastRow();
+  if (lastRow === 0) {
+    return 0;
+  }
+  const range = ws.getRange(1, 1, lastRow, ws.getLastColumn()).getValues();
+  for (let i = lastRow - 1; i >= 0; i--) {
+    if (!range[i].every(c => _norm(c) === '')) {
+      return i + 1;
+    }
+  }
+  return 0;
 }
 
 
@@ -377,9 +383,20 @@ function saveEntries(payload) {
       duplicatesToDelete.sort((a, b) => b - a).forEach(r => ws.deleteRow(r));
     }
 
-    // Inserts com lógica de linha em branco separadora
+    // Inserts com lógica de agrupamento por MAWB
     if (toInsert.length) {
-      const insertRow = findInsertRowWithBlankSeparator(ws);
+      const boundaries = findMawbGroupBoundaries(ws, mawb);
+      let insertRow;
+
+      if (boundaries) {
+        // MAWB existente, insere logo abaixo
+        insertRow = boundaries.endRow + 1;
+        ws.insertRowsAfter(boundaries.endRow, toInsert.length);
+      } else {
+        // Novo MAWB, encontra a última linha com dados e adiciona separador
+        const lastDataRow = findLastDataRow(ws);
+        insertRow = lastDataRow === 0 ? 1 : lastDataRow + 2;
+      }
       ws.getRange(insertRow, 1, toInsert.length, 9).setValues(toInsert);
     }
 
