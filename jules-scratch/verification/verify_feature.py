@@ -12,18 +12,10 @@ def run():
         window.google = {
             script: {
                 run: {
-                    withSuccessHandler: function(handler) {
-                        this._success = handler;
-                        return this;
-                    },
-                    withFailureHandler: function(handler) {
-                        this._failure = handler;
-                        return this;
-                    },
-                    withFinally: function(handler) {
-                        this._finally = handler;
-                        return this;
-                    },
+                    _success: null, _failure: null, _finally: null,
+                    withSuccessHandler: function(handler) { this._success = handler; return this; },
+                    withFailureHandler: function(handler) { this._failure = handler; return this; },
+                    withFinally: function(handler) { this._finally = handler; return this; },
                     getSpreadsheets: function() {
                         const result = {
                             ok: true,
@@ -39,6 +31,11 @@ def run():
                         const result = { ok: true, payload: { exists: true } };
                         if (this._success) { this._success(result); }
                         if (this._finally) { this._finally(); }
+                    },
+                    reset: function() {
+                        this._success = null;
+                        this._failure = null;
+                        this._finally = null;
                     }
                 }
             }
@@ -61,7 +58,7 @@ def run():
         page.fill("#newHouse", "DUPLICATE-HOUSE")
 
         # Click the "Adicionar" button to trigger the validation
-        page.click("text=Adicionar")
+        page.click("#addHouseBtn")
 
         # Add a small delay to allow the async call to complete
         page.wait_for_timeout(500)

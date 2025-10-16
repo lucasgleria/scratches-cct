@@ -330,7 +330,7 @@
                         <input type="text" id="newHouse" placeholder="Digite um HOUSE (máx. 11 caracteres)" maxlength="11">
                         <div id="houseError" class="error-message"></div>
                     </div>
-                    <button type="button" class="btn" onclick="addHouse()">Adicionar</button>
+                    <button type="button" id="addHouseBtn" class="btn" onclick="addHouse()">Adicionar</button>
                 </div>
                 <div id="housesList" class="houses-container">
                     <div class="empty-state">
@@ -524,7 +524,7 @@
             }
 
             // Exibe um spinner de carregamento no botão
-            const addButton = document.querySelector('#newHouse + button');
+            const addButton = document.getElementById('addHouseBtn');
             const originalButtonText = addButton.textContent;
             addButton.innerHTML = '<div class="spinner" style="width: 20px; height: 20px; border-width: 2px; display: inline-block;"></div>';
             addButton.disabled = true;
