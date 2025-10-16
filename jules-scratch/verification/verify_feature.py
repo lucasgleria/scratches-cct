@@ -12,10 +12,15 @@ def run():
         window.google = {
             script: {
                 run: {
-                    _success: null, _failure: null, _finally: null,
-                    withSuccessHandler: function(handler) { this._success = handler; return this; },
-                    withFailureHandler: function(handler) { this._failure = handler; return this; },
-                    withFinally: function(handler) { this._finally = handler; return this; },
+                    _success: null, _failure: null,
+                    withSuccessHandler: function(handler) {
+                        this._success = handler;
+                        return this;
+                    },
+                    withFailureHandler: function(handler) {
+                        this._failure = handler;
+                        return this;
+                    },
                     getSpreadsheets: function() {
                         const result = {
                             ok: true,
@@ -25,17 +30,10 @@ def run():
                             ]
                         };
                         if (this._success) { this._success(result); }
-                        if (this._finally) { this._finally(); }
                     },
                     checkHouseExists: function(spreadsheetId, mawb, house) {
                         const result = { ok: true, payload: { exists: true } };
                         if (this._success) { this._success(result); }
-                        if (this._finally) { this._finally(); }
-                    },
-                    reset: function() {
-                        this._success = null;
-                        this._failure = null;
-                        this._finally = null;
                     }
                 }
             }

@@ -535,6 +535,10 @@
             // Verifica no backend
             google.script.run
                 .withSuccessHandler(function(result) {
+                    // Restaura o botão
+                    addButton.innerHTML = originalButtonText;
+                    addButton.disabled = false;
+
                     if (result.ok) {
                         if (result.payload.exists) {
                             showFieldError('newHouse', 'houseError', 'Este HOUSE já existe na planilha para o MAWB informado.');
@@ -555,12 +559,10 @@
                     }
                 })
                 .withFailureHandler(function(error) {
-                    showAlert('Falha na comunicação ao verificar HOUSE: ' + error.message, 'error');
-                })
-                .withFinally(function() {
                     // Restaura o botão
                     addButton.innerHTML = originalButtonText;
                     addButton.disabled = false;
+                    showAlert('Falha na comunicação ao verificar HOUSE: ' + error.message, 'error');
                 })
                 .checkHouseExists(spreadsheetId, mawb, house);
         }
