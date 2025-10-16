@@ -4,12 +4,18 @@
  *  - Garante 1 linha por (MAWB, HOUSE)
  *  - UPSERT: atualiza se já existir; insere se não existir
  *  - Consolida duplicatas antigas do mesmo (MAWB, HOUSE)
+ *  - NOVA FEATURE: Mantém sempre uma linha em branco como separador entre grupos de dados
+ *    * Se as últimas 2 linhas estão vazias: insere na penúltima (mantém separador no final)
+ *    * Se apenas a última está vazia: pula uma linha e insere (cria novo separador)
+ *    * Se não há linhas vazias: adiciona separador + dados
  */
 
 /** Liste aqui as planilhas disponíveis para o usuário escolher. */
 const SPREADSHEETS = [
   // Exemplo:
-  // { id: '1Qrzq3NatjRtLE8CiQbMiWRHvwFgUKA5ymimoR6JAsV0', name: 'CCT Teste' }
+  { id: '1Qrzq3NatjRtLE8CiQbMiWRHvwFgUKA5ymimoR6JAsV0', name: 'CCT Teste' },
+  { id: '1qgP2RIXiA5cjO-EdSUjti11r6jBXVJR0PeMotHoBAA4', name: 'CCT Teste 2' }
+  // Adicione mais planilhas aqui conforme necessário
 ];
 
 /** Separador para múltiplos valores na mesma célula */
@@ -35,9 +41,123 @@ function _normHouse(v) {
   return _norm(v).toUpperCase();
 }
 
-/** Apenas para teste rápido do webapp */
+/** Valida MAWB - deve ser numérico com exatamente 11 dígitos */
+function validateMAWB(mawb) {
+  const normalized = _norm(mawb);
+  
+  if (!normalized) {
+    return { valid: false, message: 'MAWB é obrigatório' };
+  }
+  
+  if (!/^\d+$/.test(normalized)) {
+    return { valid: false, message: 'MAWB deve conter apenas números' };
+  }
+  
+  if (normalized.length !== 11) {
+    return { valid: false, message: 'MAWB deve ter exatamente 11 dígitos' };
+  }
+  
+  return { valid: true };
+}
+
+/** Valida HOUSE - máximo 11 caracteres */
+function validateHOUSE(house) {
+  const normalized = _norm(house);
+  
+  if (!normalized) {
+    return { valid: false, message: 'HOUSE é obrigatório' };
+  }
+  
+  if (normalized.length > 11) {
+    return { valid: false, message: 'HOUSE contém mais de 11 caracteres' };
+  }
+  
+  return { valid: true };
+}
+
+/** Serve a interface HTML */
 function doGet() {
-  return HtmlService.createHtmlOutput('OK');
+  return HtmlService.createTemplateFromFile('index')
+    .evaluate()
+    .setTitle('Sistema de Gestão MAWB/HOUSE')
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+}
+
+/** Função para incluir arquivos CSS/JS externos se necessário */
+function include(filename) {
+  return HtmlService.createHtmlOutputFromFile(filename).getContent();
+}
+
+/** Retorna a lista de planilhas disponíveis */
+function getSpreadsheets() {
+  try {
+    return _asOk(SPREADSHEETS);
+  } catch (err) {
+    return _asError('Erro ao carregar planilhas', err.message);
+  }
+}
+
+/**
+ * Garante que sempre há pelo menos uma linha em branco no final da planilha
+ */
+function ensureBlankLineAtEnd(ws) {
+  const lastRow = ws.getLastRow();
+  
+  if (lastRow === 0) return; // Planilha vazia
+  
+  // Verifica se a última linha está vazia
+  const lastRowData = ws.getRange(lastRow, 1, 1, 9).getValues()[0];
+  const isLastRowEmpty = lastRowData.every(cell => cell === '' || cell == null);
+  
+  // Se a última linha não está vazia, não fazemos nada (a lógica de inserção já cuida do espaçamento)
+  // Se está vazia, também não fazemos nada pois já temos o separador
+  
+  // Esta função serve principalmente para futuras extensões se necessário
+}
+
+/**
+ * Encontra a linha correta para inserção mantendo uma linha em branco como separador
+ * Regras:
+ * - Se as últimas duas linhas estão vazias: insere na segunda linha vazia (mantém uma linha vazia no final)
+ * - Se apenas a última linha está vazia: pula uma linha e insere (criando separador)
+ * - Se não há linhas vazias: pula uma linha e insere (criando separador)
+ */
+function findInsertRowWithBlankSeparator(ws) {
+  const lastRow = ws.getLastRow();
+  
+  // Se a planilha está vazia ou tem apenas cabeçalho
+  if (lastRow <= 1) {
+    return lastRow + 1;
+  }
+  
+  // Função para verificar se uma linha está completamente vazia
+  const isRowEmpty = (row) => {
+    return row.every(cell => cell === '' || cell == null);
+  };
+  
+  // Verifica a última linha
+  const lastRowData = ws.getRange(lastRow, 1, 1, 9).getValues()[0];
+  const lastRowEmpty = isRowEmpty(lastRowData);
+  
+  if (lastRow >= 2) {
+    // Verifica a penúltima linha também
+    const secondLastRowData = ws.getRange(lastRow - 1, 1, 1, 9).getValues()[0];
+    const secondLastRowEmpty = isRowEmpty(secondLastRowData);
+    
+    // Se as últimas duas linhas estão vazias: insere na penúltima (mantém separador no final)
+    if (secondLastRowEmpty && lastRowEmpty) {
+      return lastRow; // Insere na última linha vazia, mantendo uma linha vazia após
+    }
+    
+    // Se apenas a última linha está vazia: pula ela e insere (mantém separador)
+    if (!secondLastRowEmpty && lastRowEmpty) {
+      return lastRow + 2; // Pula a linha vazia + adiciona separador
+    }
+  }
+  
+  // Se a última linha tem dados ou é a primeira linha com dados
+  // Adiciona separador + insere dados
+  return lastRow + 2; // Linha vazia (separador) + linha de dados
 }
 
 /**
@@ -76,6 +196,20 @@ function saveEntries(payload) {
     if (!spreadsheetId) return _asError('Selecione uma planilha.');
     if (!Array.isArray(houses) || houses.length === 0) return _asError('Adicione ao menos um HOUSE.');
 
+    // Validações de entrada
+    const mawbValidation = validateMAWB(mawb);
+    if (!mawbValidation.valid) {
+      return _asError(mawbValidation.message);
+    }
+
+    // Valida todos os HOUSE codes
+    for (let i = 0; i < houses.length; i++) {
+      const houseValidation = validateHOUSE(houses[i]);
+      if (!houseValidation.valid) {
+        return _asError(`HOUSE "${houses[i]}": ${houseValidation.message}`);
+      }
+    }
+
     const ss = SpreadsheetApp.openById(spreadsheetId);
     const sheets = ss.getSheets();
     if (sheets.length < 3) return _asError('A planilha selecionada não possui 3 abas.');
@@ -84,11 +218,13 @@ function saveEntries(payload) {
     // ----------------- Helpers -----------------
     const COLS = { MAWB:1, HOUSE:2, REF:3, CONS:4, ENT:5, DTA:6, PREV:7, RESP:8, OBS:9 };
 
-    const collectByHouse = (arr, house) =>
-      arr
+    const collectByHouse = (arr, house) => {
+      const values = arr
         .filter(x => _normHouse(x && x.house) === house)
         .map(x => _norm(x && x.value))
         .filter(Boolean);
+      return Array.from(new Set(values));
+    };
 
     const joinVals = (vals) => (vals.length ? vals.join(MULTI_JOIN) : '');
 
@@ -160,18 +296,57 @@ function saveEntries(payload) {
     checkLinked(observacoes, 'OBSERVAÇÃO');
 
     // Calcula linhas-alvo (UMA por HOUSE)
+    // Cria um mapa consolidado por HOUSE
+    const houseDataMap = new Map();
+
     const mawbNorm = _norm(mawb);
-    const calculatedRows = housesClean.map(h => ([
-      mawbNorm,              // MAWB
-      h,                     // HOUSE
-      joinVals(collectByHouse(refs, h)),
-      joinVals(collectByHouse(consignees, h)),
-      joinVals(collectByHouse(entregas, h)),
-      joinVals(collectByHouse(dtas, h)),
-      joinVals(collectByHouse(previsoes, h)),
-      joinVals(collectByHouse(responsaveis, h)),
-      joinVals(collectByHouse(observacoes, h))
+    
+    housesClean.forEach(h => {
+      houseDataMap.set(h, {
+        mawb: mawbNorm,
+        house: h,
+        refs: [],
+        consignees: [],
+        entregas: [],
+        dtas: [],
+        previsoes: [],
+        responsaveis: [],
+        observacoes: []
+      });
+    });
+
+    const appendToMap = (map, arr, field) => {
+      arr.forEach(({ house, value }) => {
+        const h = _normHouse(house);
+        if (map.has(h)) {
+          const item = map.get(h);
+          item[field].push(_norm(value));
+        }
+      });
+    };
+
+    // Preenche o mapa com todos os dados
+    appendToMap(houseDataMap, refs, 'refs');
+    appendToMap(houseDataMap, consignees, 'consignees');
+    appendToMap(houseDataMap, entregas, 'entregas');
+    appendToMap(houseDataMap, dtas, 'dtas');
+    appendToMap(houseDataMap, previsoes, 'previsoes');
+    appendToMap(houseDataMap, responsaveis, 'responsaveis');
+    appendToMap(houseDataMap, observacoes, 'observacoes');
+
+    // Gera linhas finais consolidadas (1 por HOUSE)
+    const calculatedRows = [...houseDataMap.values()].map(data => ([
+      data.mawb,
+      data.house,
+      joinVals(data.refs),
+      joinVals(data.consignees),
+      joinVals(data.entregas),
+      joinVals(data.dtas),
+      joinVals(data.previsoes),
+      joinVals(data.responsaveis),
+      joinVals(data.observacoes)
     ]));
+
 
     // UPSERT
     const toInsert = [];
@@ -221,10 +396,14 @@ function saveEntries(payload) {
       duplicatesToDelete.sort((a, b) => b - a).forEach(r => ws.deleteRow(r));
     }
 
-    // Inserts
+    // Inserts com lógica de linha em branco separadora
     if (toInsert.length) {
-      ws.getRange(ws.getLastRow() + 1, 1, toInsert.length, 9).setValues(toInsert);
+      const insertRow = findInsertRowWithBlankSeparator(ws);
+      ws.getRange(insertRow, 1, toInsert.length, 9).setValues(toInsert);
     }
+
+    // Garante que sempre há uma linha em branco no final após todas as operações
+    ensureBlankLineAtEnd(ws);
 
     return _asOk({
       inserted: toInsert.length,
