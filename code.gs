@@ -44,34 +44,34 @@ function _normHouse(v) {
 /** Valida MAWB - deve ser numérico com exatamente 11 dígitos */
 function validateMAWB(mawb) {
   const normalized = _norm(mawb);
-  
+
   if (!normalized) {
     return { valid: false, message: 'MAWB é obrigatório' };
   }
-  
+
   if (!/^\d+$/.test(normalized)) {
     return { valid: false, message: 'MAWB deve conter apenas números' };
   }
-  
+
   if (normalized.length !== 11) {
     return { valid: false, message: 'MAWB deve ter exatamente 11 dígitos' };
   }
-  
+
   return { valid: true };
 }
 
 /** Valida HOUSE - máximo 11 caracteres */
 function validateHOUSE(house) {
   const normalized = _norm(house);
-  
+
   if (!normalized) {
     return { valid: false, message: 'HOUSE é obrigatório' };
   }
-  
+
   if (normalized.length > 11) {
     return { valid: false, message: 'HOUSE contém mais de 11 caracteres' };
   }
-  
+
   return { valid: true };
 }
 
@@ -98,67 +98,44 @@ function getSpreadsheets() {
 }
 
 /**
- * Garante que sempre há pelo menos uma linha em branco no final da planilha
- */
-function ensureBlankLineAtEnd(ws) {
-  const lastRow = ws.getLastRow();
-  
-  if (lastRow === 0) return; // Planilha vazia
-  
-  // Verifica se a última linha está vazia
-  const lastRowData = ws.getRange(lastRow, 1, 1, 9).getValues()[0];
-  const isLastRowEmpty = lastRowData.every(cell => cell === '' || cell == null);
-  
-  // Se a última linha não está vazia, não fazemos nada (a lógica de inserção já cuida do espaçamento)
-  // Se está vazia, também não fazemos nada pois já temos o separador
-  
-  // Esta função serve principalmente para futuras extensões se necessário
-}
-
-/**
- * Encontra a linha correta para inserção mantendo uma linha em branco como separador
- * Regras:
- * - Se as últimas duas linhas estão vazias: insere na segunda linha vazia (mantém uma linha vazia no final)
- * - Se apenas a última linha está vazia: pula uma linha e insere (criando separador)
- * - Se não há linhas vazias: pula uma linha e insere (criando separador)
+ * Encontra a linha correta para inserção, garantindo uma linha em branco como separador.
+ * A função localiza a última linha que contém dados, ignorando quaisquer linhas em branco
+ * no final da planilha, e retorna a posição para a nova inserção (última linha com dados + 2).
  */
 function findInsertRowWithBlankSeparator(ws) {
+  const maxRows = ws.getMaxRows();
   const lastRow = ws.getLastRow();
-  
-  // Se a planilha está vazia ou tem apenas cabeçalho
-  if (lastRow <= 1) {
-    return lastRow + 1;
+
+  if (lastRow === 0) {
+    return 1; // Planilha vazia, insere na primeira linha
   }
-  
-  // Função para verificar se uma linha está completamente vazia
-  const isRowEmpty = (row) => {
-    return row.every(cell => cell === '' || cell == null);
-  };
-  
-  // Verifica a última linha
-  const lastRowData = ws.getRange(lastRow, 1, 1, 9).getValues()[0];
-  const lastRowEmpty = isRowEmpty(lastRowData);
-  
-  if (lastRow >= 2) {
-    // Verifica a penúltima linha também
-    const secondLastRowData = ws.getRange(lastRow - 1, 1, 1, 9).getValues()[0];
-    const secondLastRowEmpty = isRowEmpty(secondLastRowData);
-    
-    // Se as últimas duas linhas estão vazias: insere na penúltima (mantém separador no final)
-    if (secondLastRowEmpty && lastRowEmpty) {
-      return lastRow; // Insere na última linha vazia, mantendo uma linha vazia após
-    }
-    
-    // Se apenas a última linha está vazia: pula ela e insere (mantém separador)
-    if (!secondLastRowEmpty && lastRowEmpty) {
-      return lastRow + 2; // Pula a linha vazia + adiciona separador
+
+  let lastDataRow = lastRow;
+  // Se a última linha já tem conteúdo, não precisamos procurar para trás.
+  // Se estiver vazia, procuramos a última com dados.
+  if (ws.getRange(lastRow, 1, 1, ws.getLastColumn()).getValues()[0].every(c => _norm(c) === '')) {
+    const range = ws.getRange(1, 1, lastRow, ws.getLastColumn()).getValues();
+    for (let i = lastRow - 1; i >= 0; i--) {
+      if (!range[i].every(c => _norm(c) === '')) {
+        lastDataRow = i + 1;
+        break;
+      }
+      if (i === 0) { // Chegou no topo e não achou dados
+        lastDataRow = 0;
+      }
     }
   }
-  
-  // Se a última linha tem dados ou é a primeira linha com dados
-  // Adiciona separador + insere dados
-  return lastRow + 2; // Linha vazia (separador) + linha de dados
+
+  // Se não encontrou nenhuma linha com dados (ex: planilha só com linhas em branco),
+  // insere na primeira linha.
+  if (lastDataRow === 0) {
+    return 1;
+  }
+
+  // Insere duas linhas após a última linha com dados para criar o separador.
+  return lastDataRow + 2;
 }
+
 
 /**
  * saveEntries(payload)
@@ -261,6 +238,10 @@ function saveEntries(payload) {
     const duplicatesToDelete = [];     // linha absoluta para deletar (será apagada no fim)
 
     table.forEach((row, i) => {
+      // Pula linhas em branco para não as marcar como duplicatas
+      if (row.every(cell => _norm(cell) === '')) {
+        return;
+      }
       const key = keyFor(row[COLS.MAWB - 1], row[COLS.HOUSE - 1]);
       const absRow = firstDataRow + i;
       if (!index.has(key)) {
@@ -300,7 +281,7 @@ function saveEntries(payload) {
     const houseDataMap = new Map();
 
     const mawbNorm = _norm(mawb);
-    
+
     housesClean.forEach(h => {
       houseDataMap.set(h, {
         mawb: mawbNorm,
@@ -401,9 +382,6 @@ function saveEntries(payload) {
       const insertRow = findInsertRowWithBlankSeparator(ws);
       ws.getRange(insertRow, 1, toInsert.length, 9).setValues(toInsert);
     }
-
-    // Garante que sempre há uma linha em branco no final após todas as operações
-    ensureBlankLineAtEnd(ws);
 
     return _asOk({
       inserted: toInsert.length,
