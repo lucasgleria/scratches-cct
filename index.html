@@ -330,7 +330,7 @@
                         <input type="text" id="newHouse" placeholder="Digite um HOUSE (máx. 11 caracteres)" maxlength="11">
                         <div id="houseError" class="error-message"></div>
                     </div>
-                    <button type="button" id="addHouseBtn" class="btn" onclick="addHouse()">Adicionar</button>
+                    <button type="button" class="btn" onclick="addHouse()">Adicionar</button>
                 </div>
                 <div id="housesList" class="houses-container">
                     <div class="empty-state">
@@ -494,22 +494,8 @@
 
         // Adiciona um novo HOUSE
         function addHouse() {
-            const spreadsheetId = document.getElementById('spreadsheet').value;
-            const mawb = document.getElementById('mawb').value.trim();
             const input = document.getElementById('newHouse');
             const house = input.value.trim().toUpperCase();
-
-            // Validações prévias
-            if (!spreadsheetId) {
-                showAlert('Selecione uma planilha antes de adicionar um HOUSE.', 'error');
-                return;
-            }
-            const mawbValidation = validateMAWB(mawb);
-            if (!mawbValidation.valid) {
-                showFieldError('mawb', 'mawbError', mawbValidation.message);
-                showAlert('Corrija o MAWB antes de adicionar um HOUSE.', 'error');
-                return;
-            }
 
             // Validação do HOUSE
             const validation = validateHOUSE(house);
@@ -519,52 +505,26 @@
             }
 
             if (houses.includes(house)) {
-                showFieldError('newHouse', 'houseError', 'Este HOUSE já foi adicionado na interface.');
+                showFieldError('newHouse', 'houseError', 'Este HOUSE já foi adicionado');
                 return;
             }
-
-            // Exibe um spinner de carregamento no botão
-            const addButton = document.getElementById('addHouseBtn');
-            const originalButtonText = addButton.textContent;
-            addButton.innerHTML = '<div class="spinner" style="width: 20px; height: 20px; border-width: 2px; display: inline-block;"></div>';
-            addButton.disabled = true;
 
             // Limpa erro se chegou até aqui
             clearFieldError('newHouse', 'houseError');
 
-            // Verifica no backend
-            google.script.run
-                .withSuccessHandler(function(result) {
-                    // Restaura o botão
-                    addButton.innerHTML = originalButtonText;
-                    addButton.disabled = false;
+            houses.push(house);
+            houseData[house] = {};
 
-                    if (result.ok) {
-                        if (result.payload.exists) {
-                            showFieldError('newHouse', 'houseError', 'Este HOUSE já existe na planilha para o MAWB informado.');
-                        } else {
-                            // Adiciona o HOUSE se não existir
-                            houses.push(house);
-                            houseData[house] = {};
-                            dataTypes.forEach(type => {
-                                houseData[house][type.key] = [];
-                            });
-                            input.value = '';
-                            input.classList.remove('input-valid', 'input-error');
-                            updateHousesDisplay();
-                            updateDataSection();
-                        }
-                    } else {
-                        showAlert('Erro ao verificar HOUSE: ' + result.message, 'error');
-                    }
-                })
-                .withFailureHandler(function(error) {
-                    // Restaura o botão
-                    addButton.innerHTML = originalButtonText;
-                    addButton.disabled = false;
-                    showAlert('Falha na comunicação ao verificar HOUSE: ' + error.message, 'error');
-                })
-                .checkHouseExists(spreadsheetId, mawb, house);
+            // Inicializa dados para o house
+            dataTypes.forEach(type => {
+                houseData[house][type.key] = [];
+            });
+
+            input.value = '';
+            // Remove classes de validação do campo limpo
+            input.classList.remove('input-valid', 'input-error');
+            updateHousesDisplay();
+            updateDataSection();
         }
 
 
