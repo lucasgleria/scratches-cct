@@ -97,6 +97,21 @@ function getSpreadsheets() {
   }
 }
 
+/**
+ * Trigger que é executado quando uma célula é editada manualmente.
+ * @param {Event} e O objeto de evento.
+ */
+function onEdit(e) {
+  const DTA_COLUMN = 6; // Coluna F
+  const sheet = e.source.getActiveSheet();
+  const range = e.range;
+
+  // Verifica se a edição foi na coluna DTA e não foi em múltiplas células
+  if (range.getColumn() === DTA_COLUMN && range.getNumRows() === 1) {
+    applyRowColoring(sheet, range.getRow());
+  }
+}
+
 function findMawbGroupBoundaries(ws, mawb) {
   const lastRow = ws.getLastRow();
   if (lastRow === 0) {
@@ -140,6 +155,35 @@ function findLastDataRow(ws) {
     }
   }
   return 0;
+}
+
+/**
+ * Aplica a formatação de cor a uma linha com base no valor da coluna DTA.
+ * @param {Sheet} sheet A aba da planilha.
+ * @param {number} rowNumber O número da linha a ser formatada.
+ */
+function applyRowColoring(sheet, rowNumber) {
+  const DTA_COLUMN = 6; // Coluna F
+  const AFFECTED_COLUMNS = 8; // Colunas A-H
+  const GREEN_COLOR = '#d9ead3';
+
+  // Ignora o cabeçalho (se houver)
+  if (rowNumber === 1) {
+    const firstCell = _norm(sheet.getRange(1, 1).getValue()).toUpperCase();
+    if (firstCell.includes('MAWB')) return;
+  }
+
+  const dtaValue = sheet.getRange(rowNumber, DTA_COLUMN).getValue();
+  const normalizedDta = _norm(dtaValue).toUpperCase();
+  const rangeToFormat = sheet.getRange(rowNumber, 1, 1, AFFECTED_COLUMNS);
+
+  if (normalizedDta === '' || normalizedDta.startsWith('GRU') || normalizedDta.startsWith('VCP')) {
+    // Se a condição for atendida ou a célula estiver vazia, remove a cor
+    rangeToFormat.setBackground(null);
+  } else {
+    // Caso contrário, pinta de verde
+    rangeToFormat.setBackground(GREEN_COLOR);
+  }
 }
 
 
@@ -376,6 +420,10 @@ function saveEntries(payload) {
     // Updates
     toUpdateBlocks.forEach(b => {
       ws.getRange(b.startRow, 1, b.values.length, 9).setValues(b.values);
+      // Aplica a formatação nas linhas atualizadas
+      for (let i = 0; i < b.values.length; i++) {
+        applyRowColoring(ws, b.startRow + i);
+      }
     });
 
     // Remove duplicatas antigas do mesmo MAWB/HOUSE (de baixo pra cima)
@@ -398,6 +446,10 @@ function saveEntries(payload) {
         insertRow = lastDataRow === 0 ? 1 : lastDataRow + 2;
       }
       ws.getRange(insertRow, 1, toInsert.length, 9).setValues(toInsert);
+      // Aplica a formatação nas linhas inseridas
+      for (let i = 0; i < toInsert.length; i++) {
+        applyRowColoring(ws, insertRow + i);
+      }
     }
 
     return _asOk({
