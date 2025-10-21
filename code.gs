@@ -97,6 +97,23 @@ function getSpreadsheets() {
   }
 }
 
+/**
+ * Trigger que é executado quando uma célula é editada manualmente.
+ * @param {Event} e O objeto de evento.
+ */
+function onEdit(e) {
+  const range = e.range;
+  const sheet = e.source.getActiveSheet();
+  const editedCol = range.getColumn();
+
+  // Colunas que disparam a formatação
+  const TRIGGER_COLS = [5, 6, 9]; // ENT, DTA, OBS
+
+  if (TRIGGER_COLS.includes(editedCol) && range.getNumRows() === 1) {
+    updateRowFormatting(sheet, range.getRow());
+  }
+}
+
 function findMawbGroupBoundaries(ws, mawb) {
   const lastRow = ws.getLastRow();
   if (lastRow === 0) {
@@ -140,6 +157,54 @@ function findLastDataRow(ws) {
     }
   }
   return 0;
+}
+
+/**
+ * Aplica toda a formatação de cores a uma linha com base nos valores das colunas.
+ * @param {Sheet} sheet A aba da planilha.
+ * @param {number} rowNumber O número da linha a ser formatada.
+ */
+function updateRowFormatting(sheet, rowNumber) {
+  // Constantes de coluna
+  const COLS = { ENT: 5, DTA: 6, RESP: 8, OBS: 9 };
+  // Constantes de cor
+  const COLORS = {
+    LIGHT_BLUE: '#cfe2f3',
+    REGULAR_BLUE: '#9fc5e8',
+    GREEN: '#d9ead3'
+  };
+  const FRIDGE_CODES = ["FRI", "FRO", "COL", "ERT", "CRT"];
+
+  // Ignora o cabeçalho
+  if (rowNumber === 1) {
+    const firstCell = _norm(sheet.getRange(1, 1).getValue()).toUpperCase();
+    if (firstCell.includes('MAWB')) return;
+  }
+
+  // Lê os valores relevantes da linha de uma só vez para otimização
+  const rowData = sheet.getRange(rowNumber, 1, 1, COLS.OBS).getValues()[0];
+  const entregaValue = _norm(rowData[COLS.ENT - 1]).toUpperCase();
+  const dtaValue = _norm(rowData[COLS.DTA - 1]).toUpperCase();
+  const obsValue = _norm(rowData[COLS.OBS - 1]).toUpperCase();
+
+  // Reseta a formatação da linha inteira antes de aplicar novas regras
+  sheet.getRange(rowNumber, 1, 1, COLS.OBS).setBackground(null);
+
+  // Regra 1: Exportação (prioridade máxima)
+  if (entregaValue === 'EXPORTAÇÃO') {
+    sheet.getRange(rowNumber, 1, 1, COLS.OBS).setBackground(COLORS.LIGHT_BLUE);
+    return; // Para a execução, pois esta regra sobrepõe as outras
+  }
+
+  // Regra 2: DTA
+  if (dtaValue && !dtaValue.startsWith('GRU') && !dtaValue.startsWith('VCP')) {
+    sheet.getRange(rowNumber, 1, 1, COLS.RESP).setBackground(COLORS.GREEN);
+  }
+
+  // Regra 3: Carga de Geladeira
+  if (FRIDGE_CODES.includes(obsValue)) {
+    sheet.getRange(rowNumber, COLS.RESP, 1, 2).setBackground(COLORS.REGULAR_BLUE); // Colunas H e I
+  }
 }
 
 
@@ -376,6 +441,10 @@ function saveEntries(payload) {
     // Updates
     toUpdateBlocks.forEach(b => {
       ws.getRange(b.startRow, 1, b.values.length, 9).setValues(b.values);
+      // Aplica a formatação nas linhas atualizadas
+      for (let i = 0; i < b.values.length; i++) {
+        updateRowFormatting(ws, b.startRow + i);
+      }
     });
 
     // Remove duplicatas antigas do mesmo MAWB/HOUSE (de baixo pra cima)
@@ -398,6 +467,10 @@ function saveEntries(payload) {
         insertRow = lastDataRow === 0 ? 1 : lastDataRow + 2;
       }
       ws.getRange(insertRow, 1, toInsert.length, 9).setValues(toInsert);
+      // Aplica a formatação nas linhas inseridas
+      for (let i = 0; i < toInsert.length; i++) {
+        updateRowFormatting(ws, insertRow + i);
+      }
     }
 
     return _asOk({
