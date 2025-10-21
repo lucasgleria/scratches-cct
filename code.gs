@@ -199,6 +199,10 @@ function updateRowFormatting(sheet, rowNumber) {
   // Regra 2: DTA
   if (dtaValue && !dtaValue.startsWith('GRU') && !dtaValue.startsWith('VCP')) {
     sheet.getRange(rowNumber, 1, 1, COLS.RESP).setBackground(COLORS.GREEN);
+    // Nova regra específica para a planilha "CCT Teste"
+    if (sheet.getParent().getName() === 'CCT Teste') {
+      sheet.getRange(rowNumber, COLS.DTA).setBackground('#f6b26b'); // Laranja
+    }
   }
 
   // Regra 3: Carga de Geladeira
