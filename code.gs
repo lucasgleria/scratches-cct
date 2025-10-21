@@ -450,6 +450,8 @@ function saveEntries(payload) {
     // Updates
     toUpdateBlocks.forEach(b => {
       const range = ws.getRange(b.startRow, 1, b.values.length, 9);
+      // Força o formato de texto para as colunas MAWB e HOUSE antes de inserir os dados
+      ws.getRange(b.startRow, 1, b.values.length, 2).setNumberFormat('@');
       range.setValues(b.values);
       const colorMap = b.values.map(row => getRowColors(row, ws.getName()));
       range.setBackgrounds(colorMap);
@@ -475,6 +477,8 @@ function saveEntries(payload) {
         insertRow = lastDataRow === 0 ? 1 : lastDataRow + 2;
       }
       const range = ws.getRange(insertRow, 1, toInsert.length, 9);
+      // Força o formato de texto para as colunas MAWB e HOUSE antes de inserir os dados
+      ws.getRange(insertRow, 1, toInsert.length, 2).setNumberFormat('@');
       range.setValues(toInsert);
       const colorMap = toInsert.map(row => getRowColors(row, ws.getName()));
       range.setBackgrounds(colorMap);
