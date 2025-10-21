@@ -105,12 +105,21 @@ function onEdit(e) {
   const range = e.range;
   const sheet = e.source.getActiveSheet();
   const editedCol = range.getColumn();
+  const editedRow = range.getRow();
 
   // Colunas que disparam a formatação
   const TRIGGER_COLS = [5, 6, 9]; // ENT, DTA, OBS
 
   if (TRIGGER_COLS.includes(editedCol) && range.getNumRows() === 1) {
-    updateRowFormatting(sheet, range.getRow());
+    // Ignora o cabeçalho
+    if (editedRow === 1) {
+      const firstCell = _norm(sheet.getRange(1, 1).getValue()).toUpperCase();
+      if (firstCell.includes('MAWB')) return;
+    }
+
+    const rowData = sheet.getRange(editedRow, 1, 1, 9).getValues()[0];
+    const colors = getRowColors(rowData, sheet.getName());
+    sheet.getRange(editedRow, 1, 1, colors.length).setBackgrounds([colors]);
   }
 }
 
@@ -160,55 +169,51 @@ function findLastDataRow(ws) {
 }
 
 /**
- * Aplica toda a formatação de cores a uma linha com base nos valores das colunas.
- * @param {Sheet} sheet A aba da planilha.
- * @param {number} rowNumber O número da linha a ser formatada.
+ * Calcula a formatação de cores para uma linha com base nos valores das colunas.
+ * @param {Array<String>} rowData Os dados da linha.
+ * @param {String} sheetName O nome da planilha.
+ * @returns {Array<String>} Uma matriz de códigos de cores para a linha.
  */
-function updateRowFormatting(sheet, rowNumber) {
-  // Constantes de coluna
-  const COLS = { ENT: 5, DTA: 6, RESP: 8, OBS: 9 };
-  // Constantes de cor
+function getRowColors(rowData, sheetName) {
+  const COLS = { MAWB: 0, HOUSE: 1, REF: 2, CONS: 3, ENT: 4, DTA: 5, PREV: 6, RESP: 7, OBS: 8 };
   const COLORS = {
     LIGHT_BLUE: '#cfe2f3',
     REGULAR_BLUE: '#9fc5e8',
-    GREEN: '#d9ead3'
+    GREEN: '#d9ead3',
+    ORANGE: '#f6b26b',
+    NO_COLOR: null
   };
   const FRIDGE_CODES = ["FRI", "FRO", "COL", "ERT", "CRT"];
 
-  // Ignora o cabeçalho
-  if (rowNumber === 1) {
-    const firstCell = _norm(sheet.getRange(1, 1).getValue()).toUpperCase();
-    if (firstCell.includes('MAWB')) return;
-  }
+  const colors = new Array(COLS.OBS + 1).fill(COLORS.NO_COLOR);
 
-  // Lê os valores relevantes da linha de uma só vez para otimização
-  const rowData = sheet.getRange(rowNumber, 1, 1, COLS.OBS).getValues()[0];
-  const entregaValue = _norm(rowData[COLS.ENT - 1]).toUpperCase();
-  const dtaValue = _norm(rowData[COLS.DTA - 1]).toUpperCase();
-  const obsValue = _norm(rowData[COLS.OBS - 1]).toUpperCase();
-
-  // Reseta a formatação da linha inteira antes de aplicar novas regras
-  sheet.getRange(rowNumber, 1, 1, COLS.OBS).setBackground(null);
+  const entregaValue = _norm(rowData[COLS.ENT]).toUpperCase();
+  const dtaValue = _norm(rowData[COLS.DTA]).toUpperCase();
+  const obsValue = _norm(rowData[COLS.OBS]).toUpperCase();
 
   // Regra 1: Exportação (prioridade máxima)
   if (entregaValue === 'EXPORTAÇÃO') {
-    sheet.getRange(rowNumber, 1, 1, COLS.OBS).setBackground(COLORS.LIGHT_BLUE);
-    return; // Para a execução, pois esta regra sobrepõe as outras
+    return colors.fill(COLORS.LIGHT_BLUE);
   }
 
   // Regra 2: DTA
   if (dtaValue && !dtaValue.startsWith('GRU') && !dtaValue.startsWith('VCP')) {
-    sheet.getRange(rowNumber, 1, 1, COLS.RESP).setBackground(COLORS.GREEN);
-    // Nova regra específica para a planilha "CCT Teste"
-    if (sheet.getParent().getName() === 'CCT Teste') {
-      sheet.getRange(rowNumber, COLS.DTA).setBackground('#f6b26b'); // Laranja
+    for (let i = COLS.MAWB; i <= COLS.RESP; i++) {
+      colors[i] = COLORS.GREEN;
+    }
+    // Regra específica para a planilha "CCT Teste"
+    if (sheetName === 'CCT Teste') {
+      colors[COLS.DTA] = COLORS.ORANGE;
     }
   }
 
   // Regra 3: Carga de Geladeira
   if (FRIDGE_CODES.includes(obsValue)) {
-    sheet.getRange(rowNumber, COLS.RESP, 1, 2).setBackground(COLORS.REGULAR_BLUE); // Colunas H e I
+    colors[COLS.RESP] = COLORS.REGULAR_BLUE;
+    colors[COLS.OBS] = COLORS.REGULAR_BLUE;
   }
+
+  return colors;
 }
 
 
@@ -444,11 +449,10 @@ function saveEntries(payload) {
     // Escritas: updates, deletes (duplicatas antigas), inserts
     // Updates
     toUpdateBlocks.forEach(b => {
-      ws.getRange(b.startRow, 1, b.values.length, 9).setValues(b.values);
-      // Aplica a formatação nas linhas atualizadas
-      for (let i = 0; i < b.values.length; i++) {
-        updateRowFormatting(ws, b.startRow + i);
-      }
+      const range = ws.getRange(b.startRow, 1, b.values.length, 9);
+      range.setValues(b.values);
+      const colorMap = b.values.map(row => getRowColors(row, ws.getName()));
+      range.setBackgrounds(colorMap);
     });
 
     // Remove duplicatas antigas do mesmo MAWB/HOUSE (de baixo pra cima)
@@ -470,11 +474,10 @@ function saveEntries(payload) {
         const lastDataRow = findLastDataRow(ws);
         insertRow = lastDataRow === 0 ? 1 : lastDataRow + 2;
       }
-      ws.getRange(insertRow, 1, toInsert.length, 9).setValues(toInsert);
-      // Aplica a formatação nas linhas inseridas
-      for (let i = 0; i < toInsert.length; i++) {
-        updateRowFormatting(ws, insertRow + i);
-      }
+      const range = ws.getRange(insertRow, 1, toInsert.length, 9);
+      range.setValues(toInsert);
+      const colorMap = toInsert.map(row => getRowColors(row, ws.getName()));
+      range.setBackgrounds(colorMap);
     }
 
     return _asOk({
