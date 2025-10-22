@@ -297,6 +297,28 @@
             background-color: rgba(220, 53, 69, 0.1);
         }
 
+        .edit-value-btn {
+            background: none;
+            border: none;
+            color: #007bff;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            padding: 0;
+            margin-left: 10px;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: background-color 0.2s;
+        }
+
+        .edit-value-btn:hover {
+            background-color: rgba(0, 123, 255, 0.1);
+        }
+
         /* Toggle Switch Styles */
         .switch {
             position: relative;
@@ -758,6 +780,7 @@
                                                id="${inputId}"
                                                placeholder="${hasValue ? 'Campo preenchido' : type.placeholder}"
                                                onkeypress="handleDataEntry(event, '${type.key}', '${house}')"
+                                               onpaste="handlePaste(event, '${type.key}', '${house}')"
                                                ${hasValue ? 'disabled class="input-disabled"' : ''}>
                                         <button type="button"
                                                 id="${buttonId}"
@@ -791,12 +814,20 @@
             return `
                 <div class="value-display">
                     <span>${value}</span>
-                    <button type="button"
-                            class="remove-value-btn"
-                            onclick="removeDataEntry('${dataType}', '${house}', 0)"
-                            title="Remover valor">
-                        ×
-                    </button>
+                    <div>
+                        <button type="button"
+                                class="edit-value-btn"
+                                onclick="editDataEntry('${dataType}', '${house}')"
+                                title="Editar valor">
+                            ✏️
+                        </button>
+                        <button type="button"
+                                class="remove-value-btn"
+                                onclick="removeDataEntry('${dataType}', '${house}', 0)"
+                                title="Remover valor">
+                            ×
+                        </button>
+                    </div>
                 </div>
                 <div class="success-indicator">
                     Valor adicionado com sucesso
@@ -814,6 +845,31 @@
             if (event.key === 'Enter') {
                 addDataEntry(dataType, house);
             }
+        }
+
+        function handlePaste(event, dataType, house) {
+            // Previne a ação padrão de colar para evitar dupla inserção
+            event.preventDefault();
+
+            // Pega o texto da área de transferência
+            const pastedText = (event.clipboardData || window.clipboardData).getData('text');
+
+            // Coloca o texto no campo e o adiciona
+            const input = document.getElementById(`${dataType}_${house}`);
+            input.value = pastedText;
+            addDataEntry(dataType, house);
+        }
+
+        function editDataEntry(dataType, house) {
+            const value = houseData[house][dataType][0];
+
+            // Primeiro, remove o valor existente para reativar o campo
+            removeDataEntry(dataType, house, 0);
+
+            // Em seguida, preenche o campo com o valor antigo para edição
+            const input = document.getElementById(`${dataType}_${house}`);
+            input.value = value;
+            input.focus();
         }
 
         // Adiciona entrada de dados (apenas um valor por input)
