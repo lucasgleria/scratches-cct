@@ -43,11 +43,14 @@ function _normHouse(v) {
 
 /** Valida MAWB - deve ser numérico com exatamente 11 dígitos */
 function validateMAWB(mawb) {
-  const normalized = _norm(mawb);
+  let normalized = _norm(mawb);
 
   if (!normalized) {
     return { valid: false, message: 'MAWB é obrigatório' };
   }
+
+  // Remove o hífen para validação
+  normalized = normalized.replace(/-/g, '');
 
   if (!/^\d+$/.test(normalized)) {
     return { valid: false, message: 'MAWB deve conter apenas números' };
@@ -239,7 +242,7 @@ function saveEntries(payload) {
 
     const {
       spreadsheetId,
-      mawb,
+      mawb: rawMawb, // Renomeia para indicar que pode ter o hífen
       houses,
       refs = [],
       consignees = [],
@@ -249,6 +252,9 @@ function saveEntries(payload) {
       responsaveis = [],
       observacoes = []
     } = payload;
+
+    // Remove o hífen do MAWB para consistência
+    const mawb = _norm(rawMawb).replace(/-/g, '');
 
     if (!spreadsheetId) return _asError('Selecione uma planilha.');
     if (!Array.isArray(houses) || houses.length === 0) return _asError('Adicione ao menos um HOUSE.');

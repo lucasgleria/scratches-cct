@@ -377,7 +377,7 @@
 
             <div class="form-group">
                 <label for="mawb">MAWB:</label>
-                <input type="text" id="mawb" placeholder="Digite o MAWB (11 dígitos numéricos)" required maxlength="11">
+                <input type="text" id="mawb" placeholder="Digite o MAWB (11 dígitos numéricos)" required maxlength="12">
                 <div id="mawbError" class="error-message"></div>
             </div>
 
@@ -434,11 +434,14 @@
 
         // Funções de validação
         function validateMAWB(mawb) {
-            const normalized = mawb.trim();
+            let normalized = mawb.trim();
 
             if (!normalized) {
                 return { valid: false, message: 'MAWB é obrigatório' };
             }
+
+            // Remove o hífen para validação
+            normalized = normalized.replace(/-/g, '');
 
             if (!/^\d+$/.test(normalized)) {
                 return { valid: false, message: 'MAWB deve conter apenas números' };
