@@ -158,17 +158,27 @@ function findMawbGroupBoundaries(ws, mawb) {
   return { startRow, endRow };
 }
 
-function findLastDataRow(ws) {
-  const lastRow = ws.getLastRow();
-  if (lastRow === 0) {
-    return 0;
-  }
-  const range = ws.getRange(1, 1, lastRow, ws.getLastColumn()).getValues();
-  for (let i = lastRow - 1; i >= 0; i--) {
-    if (!range[i].every(c => _norm(c) === '')) {
-      return i + 1;
+function findLastUsedRow(ws) {
+  const maxRows = ws.getMaxRows();
+  if (maxRows === 0) return 0;
+
+  const lastColumn = ws.getLastColumn();
+  if (lastColumn === 0) return 0;
+
+  const range = ws.getRange(1, 1, maxRows, lastColumn);
+  const values = range.getValues();
+  const backgrounds = range.getBackgrounds();
+  const defaultBackground = '#ffffff'; // Cor de fundo padrão (branco)
+
+  for (let i = maxRows - 1; i >= 0; i--) {
+    const rowHasValue = !values[i].every(c => _norm(c) === '');
+    const rowHasColor = backgrounds[i].some(c => c !== defaultBackground);
+
+    if (rowHasValue || rowHasColor) {
+      return i + 1; // Retorna o número da linha (1-based)
     }
   }
+
   return 0;
 }
 
@@ -480,8 +490,8 @@ function saveEntries(payload) {
         ws.insertRowsAfter(boundaries.endRow, toInsert.length);
       } else {
         // Novo MAWB, encontra a última linha com dados e adiciona separador
-        const lastDataRow = findLastDataRow(ws);
-        insertRow = lastDataRow === 0 ? 1 : lastDataRow + 2;
+        const lastUsedRow = findLastUsedRow(ws);
+        insertRow = lastUsedRow === 0 ? 1 : lastUsedRow + 2;
       }
       const range = ws.getRange(insertRow, 1, toInsert.length, 9);
       // Força o formato de texto para as colunas MAWB e HOUSE antes de inserir os dados
