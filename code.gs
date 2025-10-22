@@ -107,6 +107,7 @@ function getSpreadsheets() {
 function onEdit(e) {
   const range = e.range;
   const sheet = e.source.getActiveSheet();
+  const spreadsheet = e.source; // A planilha inteira
   const editedCol = range.getColumn();
   const editedRow = range.getRow();
 
@@ -121,7 +122,7 @@ function onEdit(e) {
     }
 
     const rowData = sheet.getRange(editedRow, 1, 1, 9).getValues()[0];
-    const colors = getRowColors(rowData, sheet.getName());
+    const colors = getRowColors(rowData, spreadsheet.getName()); // Usa o nome do arquivo da planilha
     sheet.getRange(editedRow, 1, 1, colors.length).setBackgrounds([colors]);
   }
 }
@@ -459,7 +460,7 @@ function saveEntries(payload) {
       // Força o formato de texto para as colunas MAWB e HOUSE antes de inserir os dados
       ws.getRange(b.startRow, 1, b.values.length, 2).setNumberFormat('@');
       range.setValues(b.values);
-      const colorMap = b.values.map(row => getRowColors(row, ws.getName()));
+      const colorMap = b.values.map(row => getRowColors(row, ss.getName())); // Usa o nome do arquivo da planilha
       range.setBackgrounds(colorMap);
     });
 
@@ -486,7 +487,7 @@ function saveEntries(payload) {
       // Força o formato de texto para as colunas MAWB e HOUSE antes de inserir os dados
       ws.getRange(insertRow, 1, toInsert.length, 2).setNumberFormat('@');
       range.setValues(toInsert);
-      const colorMap = toInsert.map(row => getRowColors(row, ws.getName()));
+      const colorMap = toInsert.map(row => getRowColors(row, ss.getName())); // Usa o nome do arquivo da planilha
       range.setBackgrounds(colorMap);
     }
 
