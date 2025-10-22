@@ -387,6 +387,7 @@
                     <div style="flex: 1;">
                         <input type="text" id="newHouse" placeholder="Digite um HOUSE (máx. 11 caracteres)" maxlength="11">
                         <div id="houseError" class="error-message"></div>
+                        <div id="houseTrimInfo" class="error-message" style="color: #6c757d; font-style: italic;"></div>
                     </div>
                     <button type="button" class="btn" onclick="addHouse()">Adicionar</button>
                 </div>
@@ -507,15 +508,34 @@
                 }
             });
 
-            // Validação em tempo real para HOUSE
+            // Validação e auto-ajuste em tempo real para HOUSE
             document.getElementById('newHouse').addEventListener('input', function(e) {
-                const validation = validateHOUSE(e.target.value);
-                if (!validation.valid && e.target.value.trim()) {
+                const input = e.target;
+                const originalValue = input.value.trim().toUpperCase();
+                const trimInfoDiv = document.getElementById('houseTrimInfo');
+
+                if (originalValue.length > 11) {
+                    const toRemoveCount = originalValue.length - 11;
+                    const removedPart = originalValue.substring(0, toRemoveCount);
+                    const keptPart = originalValue.substring(toRemoveCount);
+
+                    // Atualiza o valor do input
+                    input.value = keptPart;
+
+                    // Mostra a mensagem informativa
+                    trimInfoDiv.textContent = `Original: ${originalValue}, Removido: "${removedPart}"`;
+                    trimInfoDiv.style.display = 'block';
+                } else {
+                    trimInfoDiv.style.display = 'none';
+                }
+
+                // Validação normal
+                const validation = validateHOUSE(input.value);
+                if (!validation.valid && input.value.trim()) {
                     showFieldError('newHouse', 'houseError', validation.message);
                 } else if (validation.valid) {
                     clearFieldError('newHouse', 'houseError');
                 } else {
-                    // Campo vazio - limpa erro mas não mostra válido
                     const field = document.getElementById('newHouse');
                     const errorDiv = document.getElementById('houseError');
                     field.classList.remove('input-error', 'input-valid');
