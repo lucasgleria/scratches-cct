@@ -43,11 +43,14 @@ function _normHouse(v) {
 
 /** Valida MAWB - deve ser numérico com exatamente 11 dígitos */
 function validateMAWB(mawb) {
-  const normalized = _norm(mawb);
+  let normalized = _norm(mawb);
 
   if (!normalized) {
     return { valid: false, message: 'MAWB é obrigatório' };
   }
+
+  // Remove o hífen para validação
+  normalized = normalized.replace(/-/g, '');
 
   if (!/^\d+$/.test(normalized)) {
     return { valid: false, message: 'MAWB deve conter apenas números' };
@@ -97,6 +100,33 @@ function getSpreadsheets() {
   }
 }
 
+/**
+ * Trigger que é executado quando uma célula é editada manualmente.
+ * @param {Event} e O objeto de evento.
+ */
+function onEdit(e) {
+  const range = e.range;
+  const sheet = e.source.getActiveSheet();
+  const spreadsheet = e.source; // A planilha inteira
+  const editedCol = range.getColumn();
+  const editedRow = range.getRow();
+
+  // Colunas que disparam a formatação
+  const TRIGGER_COLS = [5, 6, 9]; // ENT, DTA, OBS
+
+  if (TRIGGER_COLS.includes(editedCol) && range.getNumRows() === 1) {
+    // Ignora o cabeçalho
+    if (editedRow === 1) {
+      const firstCell = _norm(sheet.getRange(1, 1).getValue()).toUpperCase();
+      if (firstCell.includes('MAWB')) return;
+    }
+
+    const rowData = sheet.getRange(editedRow, 1, 1, 9).getValues()[0];
+    const colors = getRowColors(rowData, spreadsheet.getName()); // Usa o nome do arquivo da planilha
+    sheet.getRange(editedRow, 1, 1, colors.length).setBackgrounds([colors]);
+  }
+}
+
 function findMawbGroupBoundaries(ws, mawb) {
   const lastRow = ws.getLastRow();
   if (lastRow === 0) {
@@ -128,18 +158,76 @@ function findMawbGroupBoundaries(ws, mawb) {
   return { startRow, endRow };
 }
 
-function findLastDataRow(ws) {
-  const lastRow = ws.getLastRow();
-  if (lastRow === 0) {
-    return 0;
-  }
-  const range = ws.getRange(1, 1, lastRow, ws.getLastColumn()).getValues();
-  for (let i = lastRow - 1; i >= 0; i--) {
-    if (!range[i].every(c => _norm(c) === '')) {
-      return i + 1;
+function findLastUsedRow(ws) {
+  const maxRows = ws.getMaxRows();
+  if (maxRows === 0) return 0;
+
+  const lastColumn = ws.getLastColumn();
+  if (lastColumn === 0) return 0;
+
+  const range = ws.getRange(1, 1, maxRows, lastColumn);
+  const values = range.getValues();
+  const backgrounds = range.getBackgrounds();
+  const defaultBackground = '#ffffff'; // Cor de fundo padrão (branco)
+
+  for (let i = maxRows - 1; i >= 0; i--) {
+    const rowHasValue = !values[i].every(c => _norm(c) === '');
+    const rowHasColor = backgrounds[i].some(c => c !== defaultBackground);
+
+    if (rowHasValue || rowHasColor) {
+      return i + 1; // Retorna o número da linha (1-based)
     }
   }
+
   return 0;
+}
+
+/**
+ * Calcula a formatação de cores para uma linha com base nos valores das colunas.
+ * @param {Array<String>} rowData Os dados da linha.
+ * @param {String} sheetName O nome da planilha.
+ * @returns {Array<String>} Uma matriz de códigos de cores para a linha.
+ */
+function getRowColors(rowData, sheetName) {
+  const COLS = { MAWB: 0, HOUSE: 1, REF: 2, CONS: 3, ENT: 4, DTA: 5, PREV: 6, RESP: 7, OBS: 8 };
+  const COLORS = {
+    LIGHT_BLUE: '#cfe2f3',
+    REGULAR_BLUE: '#9fc5e8',
+    GREEN: '#d9ead3',
+    ORANGE: '#f6b26b',
+    NO_COLOR: null
+  };
+  const FRIDGE_CODES = ["FRI", "FRO", "COL", "ERT", "CRT"];
+
+  const colors = new Array(COLS.OBS + 1).fill(COLORS.NO_COLOR);
+
+  const entregaValue = _norm(rowData[COLS.ENT]).toUpperCase();
+  const dtaValue = _norm(rowData[COLS.DTA]).toUpperCase();
+  const obsValue = _norm(rowData[COLS.OBS]).toUpperCase();
+
+  // Regra 1: Exportação (prioridade máxima)
+  if (entregaValue === 'EXPORTAÇÃO') {
+    return colors.fill(COLORS.LIGHT_BLUE);
+  }
+
+  // Regra 2: DTA
+  if (dtaValue && !dtaValue.startsWith('GRU') && !dtaValue.startsWith('VCP')) {
+    for (let i = COLS.MAWB; i <= COLS.RESP; i++) {
+      colors[i] = COLORS.GREEN;
+    }
+    // Regra específica para a planilha "CCT Teste"
+    if (sheetName === 'CCT Teste') {
+      colors[COLS.DTA] = COLORS.ORANGE;
+    }
+  }
+
+  // Regra 3: Carga de Geladeira
+  if (FRIDGE_CODES.includes(obsValue)) {
+    colors[COLS.RESP] = COLORS.REGULAR_BLUE;
+    colors[COLS.OBS] = COLORS.REGULAR_BLUE;
+  }
+
+  return colors;
 }
 
 
@@ -165,7 +253,7 @@ function saveEntries(payload) {
 
     const {
       spreadsheetId,
-      mawb,
+      mawb: rawMawb, // Renomeia para indicar que pode ter o hífen
       houses,
       refs = [],
       consignees = [],
@@ -175,6 +263,9 @@ function saveEntries(payload) {
       responsaveis = [],
       observacoes = []
     } = payload;
+
+    // Remove o hífen do MAWB para consistência
+    const mawb = _norm(rawMawb).replace(/-/g, '');
 
     if (!spreadsheetId) return _asError('Selecione uma planilha.');
     if (!Array.isArray(houses) || houses.length === 0) return _asError('Adicione ao menos um HOUSE.');
@@ -375,7 +466,12 @@ function saveEntries(payload) {
     // Escritas: updates, deletes (duplicatas antigas), inserts
     // Updates
     toUpdateBlocks.forEach(b => {
-      ws.getRange(b.startRow, 1, b.values.length, 9).setValues(b.values);
+      const range = ws.getRange(b.startRow, 1, b.values.length, 9);
+      // Força o formato de texto para as colunas MAWB e HOUSE antes de inserir os dados
+      ws.getRange(b.startRow, 1, b.values.length, 2).setNumberFormat('@');
+      range.setValues(b.values);
+      const colorMap = b.values.map(row => getRowColors(row, ss.getName())); // Usa o nome do arquivo da planilha
+      range.setBackgrounds(colorMap);
     });
 
     // Remove duplicatas antigas do mesmo MAWB/HOUSE (de baixo pra cima)
@@ -394,10 +490,15 @@ function saveEntries(payload) {
         ws.insertRowsAfter(boundaries.endRow, toInsert.length);
       } else {
         // Novo MAWB, encontra a última linha com dados e adiciona separador
-        const lastDataRow = findLastDataRow(ws);
-        insertRow = lastDataRow === 0 ? 1 : lastDataRow + 2;
+        const lastUsedRow = findLastUsedRow(ws);
+        insertRow = lastUsedRow === 0 ? 1 : lastUsedRow + 2;
       }
-      ws.getRange(insertRow, 1, toInsert.length, 9).setValues(toInsert);
+      const range = ws.getRange(insertRow, 1, toInsert.length, 9);
+      // Força o formato de texto para as colunas MAWB e HOUSE antes de inserir os dados
+      ws.getRange(insertRow, 1, toInsert.length, 2).setNumberFormat('@');
+      range.setValues(toInsert);
+      const colorMap = toInsert.map(row => getRowColors(row, ss.getName())); // Usa o nome do arquivo da planilha
+      range.setBackgrounds(colorMap);
     }
 
     return _asOk({
