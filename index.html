@@ -78,6 +78,7 @@
             border-radius: 6px;
             font-size: 16px;
             transition: border-color 0.3s;
+            resize: none;
         }
 
         input:focus, select:focus, textarea:focus {
@@ -607,47 +608,6 @@
                 }
             });
 
-            // Validação e auto-ajuste em tempo real para HOUSE
-            document.getElementById('newHouse').addEventListener('input', function(e) {
-                const input = e.target;
-                const originalValue = input.value.trim().toUpperCase();
-                const trimInfoDiv = document.getElementById('houseTrimInfo');
-
-                if (originalValue.length > 11) {
-                    const toRemoveCount = originalValue.length - 11;
-                    const removedPart = originalValue.substring(0, toRemoveCount);
-                    const keptPart = originalValue.substring(toRemoveCount);
-
-                    // Atualiza o valor do input
-                    input.value = keptPart;
-
-                    // Mostra a mensagem informativa
-                    trimInfoDiv.textContent = `Original: ${originalValue}, Removido: "${removedPart}"`;
-                    trimInfoDiv.style.display = 'block';
-                } else {
-                    trimInfoDiv.style.display = 'none';
-                }
-
-                // Validação normal
-                const validation = validateHOUSE(input.value);
-                if (!validation.valid && input.value.trim()) {
-                    showFieldError('newHouse', 'houseError', validation.message);
-                } else if (validation.valid) {
-                    clearFieldError('newHouse', 'houseError');
-                } else {
-                    const field = document.getElementById('newHouse');
-                    const errorDiv = document.getElementById('houseError');
-                    field.classList.remove('input-error', 'input-valid');
-                    errorDiv.style.display = 'none';
-                }
-            });
-
-            // Enter key para adicionar house
-            document.getElementById('newHouse').addEventListener('keypress', function(e) {
-                if (e.key === 'Enter') {
-                    addHouse();
-                }
-            });
         });
 
         // Carrega lista de planilhas disponíveis
@@ -811,6 +771,7 @@
         }
 
         function editHouseName(index) {
+            console.log("editHouseName called for index:", index);
             const span = document.getElementById(`house-name-${index}`);
             const currentName = span.textContent;
             span.innerHTML = `<input type="text" id="edit-house-${index}" value="${currentName}"
@@ -1096,14 +1057,15 @@
                 observacoes: []
             };
 
-            // Coleta todos os dados
+            // Coleta todos os dados de forma explícita para evitar erros
             houses.forEach(house => {
-                dataTypes.forEach(type => {
-                    const data = houseData[house][type.key] || [];
-                    data.forEach(value => {
-                        payload[type.key].push({ house, value });
-                    });
-                });
+                (houseData[house].refs || []).forEach(value => payload.refs.push({house, value}));
+                (houseData[house].consignees || []).forEach(value => payload.consignees.push({house, value}));
+                (houseData[house].entregas || []).forEach(value => payload.entregas.push({house, value}));
+                (houseData[house].dtas || []).forEach(value => payload.dtas.push({house, value}));
+                (houseData[house].previsoes || []).forEach(value => payload.previsoes.push({house, value}));
+                (houseData[house].responsaveis || []).forEach(value => payload.responsaveis.push({house, value}));
+                (houseData[house].observacoes || []).forEach(value => payload.observacoes.push({house, value}));
             });
 
             // Mostra loading
@@ -1147,8 +1109,10 @@
             document.getElementById('mawb').value = '';
             houses = [];
             houseData = {};
+            selectedHouse = null;
             updateHousesDisplay();
             updateDataSection();
+            document.getElementById('dataSection').style.display = 'none';
         }
 
         // Mostra alertas

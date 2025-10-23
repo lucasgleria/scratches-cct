@@ -127,60 +127,6 @@ function onEdit(e) {
   }
 }
 
-function findMawbGroupBoundaries(ws, mawb) {
-  const lastRow = ws.getLastRow();
-  if (lastRow === 0) {
-    return null;
-  }
-  const mawbColumn = ws.getRange(1, 1, lastRow, 1).getValues();
-  const normalizedMawb = _norm(mawb);
-  let startRow = -1;
-  let endRow = -1;
-
-  for (let i = 0; i < lastRow; i++) {
-    if (_norm(mawbColumn[i][0]) === normalizedMawb) {
-      if (startRow === -1) {
-        startRow = i + 1;
-      }
-      endRow = i + 1;
-    } else {
-      if (startRow !== -1) {
-        // We've found the end of the group
-        break;
-      }
-    }
-  }
-
-  if (startRow === -1) {
-    return null;
-  }
-
-  return { startRow, endRow };
-}
-
-function findLastUsedRow(ws) {
-  const maxRows = ws.getMaxRows();
-  if (maxRows === 0) return 0;
-
-  const lastColumn = ws.getLastColumn();
-  if (lastColumn === 0) return 0;
-
-  const range = ws.getRange(1, 1, maxRows, lastColumn);
-  const values = range.getValues();
-  const backgrounds = range.getBackgrounds();
-  const defaultBackground = '#ffffff'; // Cor de fundo padrão (branco)
-
-  for (let i = maxRows - 1; i >= 0; i--) {
-    const rowHasValue = !values[i].every(c => _norm(c) === '');
-    const rowHasColor = backgrounds[i].some(c => c !== defaultBackground);
-
-    if (rowHasValue || rowHasColor) {
-      return i + 1; // Retorna o número da linha (1-based)
-    }
-  }
-
-  return 0;
-}
 
 /**
  * Calcula a formatação de cores para uma linha com base nos valores das colunas.
@@ -216,7 +162,7 @@ function getRowColors(rowData, sheetName) {
       colors[i] = COLORS.GREEN;
     }
     // Regra específica para a planilha "CCT Teste"
-    if (sheetName === 'CCT Teste') {
+    if (sheetName === 'CCT Teste' && dtaValue === 'SSA') {
       colors[COLS.DTA] = COLORS.ORANGE;
     }
   }
@@ -309,101 +255,65 @@ function saveEntries(payload) {
       if (!a) return b;
       if (!b) return a;
       const parts = a.split(MULTI_JOIN).map(_norm);
-      return parts.includes(b) ? a : a + MULTI_JOIN + b;
+      return parts.includes(b) ? a : `${a}${MULTI_JOIN}${b}`;
     };
 
-    // Detecta cabeçalho (opcional)
-    const hasRows = ws.getLastRow() > 0;
-    let headerRow = 0;
-    if (hasRows) {
-      const first = ws.getRange(1, 1, 1, 2).getValues()[0];
-      if (/mawb/i.test(String(first[0])) && /house/i.test(String(first[1]))) headerRow = 1;
-    }
-    const firstDataRow = headerRow + 1;
-    const lastRow = ws.getLastRow();
+    const mawbNorm = _norm(mawb);
 
-    // Lê tabela atual
+    // --- Performance Improvement: Use TextFinder to locate MAWB block ---
+    const finder = ws.createTextFinder(mawbNorm).matchEntireCell(true);
+    const occurrences = finder.findAll();
+
     let table = [];
-    if (lastRow >= firstDataRow) {
-      table = ws.getRange(firstDataRow, 1, lastRow - firstDataRow + 1, 9).getValues();
+    let firstDataRow = 1;
+    let endRow = 0;
+
+    if (occurrences.length > 0) {
+      firstDataRow = occurrences[0].getRowIndex();
+      endRow = occurrences[occurrences.length - 1].getRowIndex();
+      if (endRow >= firstDataRow) {
+        table = ws.getRange(firstDataRow, 1, endRow - firstDataRow + 1, 9).getValues();
+      }
     }
 
-    // Índice por chave (case-insensitive para HOUSE)
-    // Se existirem duplicatas já salvas, manteremos a primeira e consolidaremos as demais.
-    const keyFor = (mawbVal, houseVal) => `${_norm(mawbVal)}|||${_normHouse(houseVal)}`;
-    const index = new Map();           // key -> {rowIndex, row}
-    const duplicatesToDelete = [];     // linha absoluta para deletar (será apagada no fim)
+    const keyFor = (houseVal) => _normHouse(houseVal);
+    const index = new Map();
+    const duplicatesToDelete = [];
 
     table.forEach((row, i) => {
-      // Pula linhas em branco para não as marcar como duplicatas
-      if (row.every(cell => _norm(cell) === '')) {
-        return;
-      }
-      const key = keyFor(row[COLS.MAWB - 1], row[COLS.HOUSE - 1]);
+      if (row.every(cell => _norm(cell) === '')) return;
+
+      const key = keyFor(row[COLS.HOUSE - 1]);
       const absRow = firstDataRow + i;
+
       if (!index.has(key)) {
         index.set(key, { rowIndex: absRow, row: row.slice() });
       } else {
-        // Duplicata antiga -> consolidar e marcar para excluir
         const keeper = index.get(key);
         for (let c = COLS.REF; c <= COLS.OBS; c++) {
           keeper.row[c - 1] = mergeCell(keeper.row[c - 1], row[c - 1]);
         }
-        index.set(key, keeper);
         duplicatesToDelete.push(absRow);
       }
     });
 
-    // Normaliza e deduplica lista de houses do payload
     const housesClean = Array.from(new Set(houses.map(_normHouse)));
 
-    // Valida vínculos (cada item deve apontar pra um HOUSE informado)
-    const valid = new Set(housesClean);
-    const checkLinked = (arr, label) => {
-      for (let i = 0; i < arr.length; i++) {
-        const h = _normHouse(arr[i] && arr[i].house);
-        if (!valid.has(h)) throw new Error(`Item de ${label} vinculado a HOUSE inexistente: "${arr[i] && arr[i].house}".`);
-      }
-    };
-    checkLinked(refs, 'REF');
-    checkLinked(consignees, 'CONSIGNEE');
-    checkLinked(entregas, 'ENTREGA');
-    checkLinked(dtas, 'DTA');
-    checkLinked(previsoes, 'PREVISÃO');
-    checkLinked(responsaveis, 'RESPONSÁVEL');
-    checkLinked(observacoes, 'OBSERVAÇÃO');
-
-    // Calcula linhas-alvo (UMA por HOUSE)
-    // Cria um mapa consolidado por HOUSE
     const houseDataMap = new Map();
-
-    const mawbNorm = _norm(mawb);
-
     housesClean.forEach(h => {
       houseDataMap.set(h, {
-        mawb: mawbNorm,
-        house: h,
-        refs: [],
-        consignees: [],
-        entregas: [],
-        dtas: [],
-        previsoes: [],
-        responsaveis: [],
-        observacoes: []
+        mawb: mawbNorm, house: h, refs: [], consignees: [], entregas: [],
+        dtas: [], previsoes: [], responsaveis: [], observacoes: []
       });
     });
 
     const appendToMap = (map, arr, field) => {
       arr.forEach(({ house, value }) => {
         const h = _normHouse(house);
-        if (map.has(h)) {
-          const item = map.get(h);
-          item[field].push(_norm(value));
-        }
+        if (map.has(h)) map.get(h)[field].push(_norm(value));
       });
     };
 
-    // Preenche o mapa com todos os dados
     appendToMap(houseDataMap, refs, 'refs');
     appendToMap(houseDataMap, consignees, 'consignees');
     appendToMap(houseDataMap, entregas, 'entregas');
@@ -412,28 +322,17 @@ function saveEntries(payload) {
     appendToMap(houseDataMap, responsaveis, 'responsaveis');
     appendToMap(houseDataMap, observacoes, 'observacoes');
 
-    // Gera linhas finais consolidadas (1 por HOUSE)
     const calculatedRows = [...houseDataMap.values()].map(data => ([
-      data.mawb,
-      data.house,
-      joinVals(data.refs),
-      joinVals(data.consignees),
-      joinVals(data.entregas),
-      joinVals(data.dtas),
-      joinVals(data.previsoes),
-      joinVals(data.responsaveis),
-      joinVals(data.observacoes)
+      data.mawb, data.house, joinVals(data.refs), joinVals(data.consignees),
+      joinVals(data.entregas), joinVals(data.dtas), joinVals(data.previsoes),
+      joinVals(data.responsaveis), joinVals(data.observacoes)
     ]));
 
-
-    // UPSERT
     const toInsert = [];
-    const toUpdateBlocks = []; // blocos contíguos para reduzir chamadas
-
-    // Aplicar merge/insert
     const pendingUpdates = [];
+
     calculatedRows.forEach(r => {
-      const key = keyFor(r[COLS.MAWB - 1], r[COLS.HOUSE - 1]);
+      const key = keyFor(r[COLS.HOUSE - 1]);
       if (index.has(key)) {
         const kept = index.get(key);
         const updated = kept.row.slice();
@@ -441,64 +340,36 @@ function saveEntries(payload) {
           updated[c - 1] = mergeCell(updated[c - 1], r[c - 1]);
         }
         pendingUpdates.push({ rowIndex: kept.rowIndex, row: updated });
-        // Atualiza no índice para futuras mesclas dentro da mesma execução
         index.set(key, { rowIndex: kept.rowIndex, row: updated });
       } else {
         toInsert.push(r);
       }
     });
 
-    // Ordena updates e faz blocos contíguos
-    if (pendingUpdates.length) {
-      pendingUpdates.sort((a, b) => a.rowIndex - b.rowIndex);
-      let s = 0;
-      while (s < pendingUpdates.length) {
-        let e = s + 1;
-        let startRow = pendingUpdates[s].rowIndex;
-        while (e < pendingUpdates.length &&
-               pendingUpdates[e].rowIndex === pendingUpdates[e - 1].rowIndex + 1) e++;
-        const block = pendingUpdates.slice(s, e);
-        toUpdateBlocks.push({ startRow, values: block.map(b => b.row) });
-        s = e;
-      }
-    }
-
-    // Escritas: updates, deletes (duplicatas antigas), inserts
-    // Updates
-    toUpdateBlocks.forEach(b => {
-      const range = ws.getRange(b.startRow, 1, b.values.length, 9);
-      // Força o formato de texto para as colunas MAWB e HOUSE antes de inserir os dados
-      ws.getRange(b.startRow, 1, b.values.length, 2).setNumberFormat('@');
-      range.setValues(b.values);
-      const colorMap = b.values.map(row => getRowColors(row, ss.getName())); // Usa o nome do arquivo da planilha
-      range.setBackgrounds(colorMap);
+    pendingUpdates.forEach(update => {
+      const range = ws.getRange(update.rowIndex, 1, 1, 9);
+      range.setNumberFormat('@');
+      range.setValues([update.row]);
+      range.setBackgrounds([getRowColors(update.row, ss.getName())]);
     });
 
-    // Remove duplicatas antigas do mesmo MAWB/HOUSE (de baixo pra cima)
     if (duplicatesToDelete.length) {
       duplicatesToDelete.sort((a, b) => b - a).forEach(r => ws.deleteRow(r));
     }
 
-    // Inserts com lógica de agrupamento por MAWB
     if (toInsert.length) {
-      const boundaries = findMawbGroupBoundaries(ws, mawb);
       let insertRow;
-
-      if (boundaries) {
-        // MAWB existente, insere logo abaixo
-        insertRow = boundaries.endRow + 1;
-        ws.insertRowsAfter(boundaries.endRow, toInsert.length);
+      if (occurrences.length > 0) {
+        insertRow = endRow + 1;
+        ws.insertRowsAfter(endRow, toInsert.length);
       } else {
-        // Novo MAWB, encontra a última linha com dados e adiciona separador
-        const lastUsedRow = findLastUsedRow(ws);
-        insertRow = lastUsedRow === 0 ? 1 : lastUsedRow + 2;
+        const lastRow = ws.getLastRow();
+        insertRow = lastRow === 0 ? 1 : lastRow + 2;
       }
       const range = ws.getRange(insertRow, 1, toInsert.length, 9);
-      // Força o formato de texto para as colunas MAWB e HOUSE antes de inserir os dados
-      ws.getRange(insertRow, 1, toInsert.length, 2).setNumberFormat('@');
+      range.setNumberFormat('@');
       range.setValues(toInsert);
-      const colorMap = toInsert.map(row => getRowColors(row, ss.getName())); // Usa o nome do arquivo da planilha
-      range.setBackgrounds(colorMap);
+      range.setBackgrounds(toInsert.map(row => getRowColors(row, ss.getName())));
     }
 
     return _asOk({
