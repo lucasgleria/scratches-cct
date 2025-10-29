@@ -452,6 +452,13 @@
             font-weight: bold;
         }
 
+        .edit-hint {
+            font-size: 13px;
+            color: #6c757d;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+
     </style>
 </head>
 <body>
@@ -854,6 +861,7 @@
             }
 
             let html = `
+                <p class="edit-hint">Dê um duplo clique em um HOUSE para editar.</p>
                 <ul class="house-list">
                     ${houses.map((house, index) => `
                         <li class="house-list-item ${selectedHouse === house ? 'selected' : ''}"
