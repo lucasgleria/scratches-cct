@@ -346,30 +346,52 @@ function saveEntries(payload) {
       }
     });
 
+    // --- Step 1: Apply data updates (values only) ---
     pendingUpdates.forEach(update => {
       const range = ws.getRange(update.rowIndex, 1, 1, 9);
-      range.setNumberFormat('@');
+      range.setNumberFormat('@'); // Format string to avoid auto-conversion
       range.setValues([update.row]);
-      range.setBackgrounds([getRowColors(update.row, ss.getName())]);
     });
 
+    // --- Step 2: Delete consolidated duplicate rows ---
     if (duplicatesToDelete.length) {
       duplicatesToDelete.sort((a, b) => b - a).forEach(r => ws.deleteRow(r));
     }
 
+    // --- Step 3: Insert new rows ---
     if (toInsert.length) {
       let insertRow;
-      if (occurrences.length > 0) {
-        insertRow = endRow + 1;
-        ws.insertRowsAfter(endRow, toInsert.length);
+      // Re-find the end of the group after potential deletions
+      const currentFinder = ws.createTextFinder(mawbNorm).matchEntireCell(true);
+      const currentOccurrences = currentFinder.findAll();
+
+      if (currentOccurrences.length > 0) {
+        const lastOccurrenceRow = currentOccurrences[currentOccurrences.length - 1].getRow();
+        insertRow = lastOccurrenceRow + 1;
+        ws.insertRowsAfter(lastOccurrenceRow, toInsert.length);
       } else {
         const lastRow = ws.getLastRow();
+        // Insert with a blank separator row
         insertRow = lastRow === 0 ? 1 : lastRow + 2;
       }
       const range = ws.getRange(insertRow, 1, toInsert.length, 9);
       range.setNumberFormat('@');
       range.setValues(toInsert);
-      range.setBackgrounds(toInsert.map(row => getRowColors(row, ss.getName())));
+    }
+
+    // --- Step 4: Apply formatting to the entire, final MAWB block ---
+    const finalFinder = ws.createTextFinder(mawbNorm).matchEntireCell(true);
+    const finalOccurrences = finalFinder.findAll();
+
+    if (finalOccurrences.length > 0) {
+      const startRow = finalOccurrences[0].getRow();
+      const numRows = finalOccurrences.length;
+      const finalRange = ws.getRange(startRow, 1, numRows, 9);
+
+      const finalData = finalRange.getValues();
+      const finalColors = finalData.map(row => getRowColors(row, ss.getName()));
+
+      finalRange.setBackgrounds(finalColors);
     }
 
     return _asOk({
