@@ -19,35 +19,49 @@
         }
 
         .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 20px;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .sidebar {
+            width: 450px;
+            background-color: #f8f9fa;
+            border-right: 1px solid #dee2e6;
+            padding: 15px;
+            overflow-y: auto;
+        }
+
+        .main-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 15px;
         }
 
         .header {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
-            padding: 30px;
+            padding: 20px;
             border-radius: 10px;
-            margin-bottom: 30px;
+            margin-bottom: 20px;
             text-align: center;
         }
 
         .header h1 {
-            font-size: 2.5em;
+            font-size: 2em;
             margin-bottom: 10px;
         }
 
         .form-section {
             background: white;
-            padding: 30px;
+            padding: 15px;
             border-radius: 10px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            margin-bottom: 20px;
+            margin-bottom: 15px;
         }
 
         .form-group {
-            margin-bottom: 20px;
+            margin-bottom: 15px;
         }
 
         label {
@@ -64,6 +78,7 @@
             border-radius: 6px;
             font-size: 16px;
             transition: border-color 0.3s;
+            resize: none;
         }
 
         input:focus, select:focus, textarea:focus {
@@ -107,7 +122,7 @@
             padding: 15px;
             border-radius: 6px;
             margin-bottom: 15px;
-            border-left: 4px solid #667eea;
+            border: 1px solid #dee2e6;
         }
 
         .house-header {
@@ -125,8 +140,8 @@
 
         .data-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 20px;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
             margin-top: 20px;
         }
 
@@ -376,66 +391,128 @@
             font-weight: 500;
         }
 
+        .house-list {
+            list-style: none;
+            padding: 0;
+            margin-top: 15px;
+            max-height: 250px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+        }
+
+        .house-list-item {
+            padding: 10px;
+            border-bottom: 1px solid #ddd;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .house-list-item:last-child {
+            border-bottom: none;
+        }
+
+        .house-list-item:hover {
+            background-color: #f1f3f5;
+        }
+
+        .house-list-item.selected {
+            background-color: #667eea;
+            color: white;
+            font-weight: bold;
+        }
+
+        .data-entry-wrapper {
+            margin-top: 10px;
+        }
+
+        .toggles-section {
+            display: flex;
+            gap: 20px;
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            align-items: center;
+        }
+
+        .special-data-section {
+            margin-top: 15px;
+        }
+
+        .remove-house-btn {
+            background: none;
+            border: none;
+            color: #dc3545;
+            cursor: pointer;
+            font-size: 18px;
+            font-weight: bold;
+        }
+
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="header">
-            <h1>Sistema de Gestão MAWB/HOUSE</h1>
-            <p>Gerencie suas entregas de forma eficiente</p>
-        </div>
+        <div class="sidebar">
+            <div class="form-section">
+                <h2>Configuração</h2>
 
-        <div id="alerts"></div>
-
-        <div class="form-section">
-            <h2>Configuração Inicial</h2>
-
-            <div class="form-group">
-                <label for="spreadsheet">Selecionar Planilha:</label>
-                <select id="spreadsheet" required>
-                    <option value="">Selecione uma planilha...</option>
-                </select>
-            </div>
-
-            <div class="form-group">
-                <label for="mawb">MAWB:</label>
-                <input type="text" id="mawb" placeholder="Digite o MAWB (11 dígitos numéricos)" required maxlength="12">
-                <div id="mawbError" class="error-message"></div>
-            </div>
-
-            <div class="form-group">
-                <label>HOUSES:</label>
-                <div style="display: flex; gap: 10px; margin-bottom: 10px;">
-                    <div style="flex: 1;">
-                        <input type="text" id="newHouse" placeholder="Digite um HOUSE (máx. 11 caracteres)">
-                        <div id="houseError" class="error-message"></div>
-                        <div id="houseTrimInfo" class="error-message" style="color: #6c757d; font-style: italic;"></div>
-                    </div>
-                    <button type="button" class="btn" onclick="addHouse()">Adicionar</button>
+                <div class="form-group">
+                    <label for="spreadsheet">Selecionar Planilha:</label>
+                    <select id="spreadsheet" required>
+                        <option value="">Selecione uma planilha...</option>
+                    </select>
                 </div>
-                <div id="housesList" class="houses-container">
-                    <div class="empty-state">
-                        <p>Nenhum HOUSE adicionado ainda</p>
-                        <small>Digite um HOUSE acima e clique em "Adicionar"</small>
+
+                <div class="form-group">
+                    <label for="mawb">MAWB:</label>
+                    <input type="text" id="mawb" placeholder="Digite o MAWB (11 dígitos)" required maxlength="12">
+                    <div id="mawbError" class="error-message"></div>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h2>HOUSES</h2>
+                <div class="form-group">
+                    <label for="newHouses">Adicionar um ou mais HOUSEs:</label>
+                    <textarea id="newHouses" placeholder="Cole uma lista de HOUSEs aqui, um por linha." rows="5" onpaste="handlePaste(event, 'house')"></textarea>
+                    <div id="houseError" class="error-message"></div>
+                    <button type="button" class="btn" onclick="addHouses()" style="margin-top: 10px;">Adicionar</button>
+                    <div id="housesList" class="houses-container">
+                        <div class="empty-state">
+                            <p>Nenhum HOUSE adicionado</p>
+                        </div>
                     </div>
                 </div>
             </div>
+
+            <div class="form-section">
+                <button type="button" class="btn" onclick="saveData()" style="width: 100%; font-size: 18px; padding: 15px;">
+                    Salvar Dados
+                </button>
+            </div>
         </div>
 
-        <div id="dataSection" class="form-section" style="display: none;">
-            <h2>Dados por HOUSE</h2>
-            <div id="housesData"></div>
-        </div>
+        <div class="main-content">
+            <div class="header">
+                <h1>Sistema de Gestão MAWB/HOUSE</h1>
+                <p>Gerencie suas entregas de forma eficiente</p>
+            </div>
 
-        <div class="form-section">
-            <button type="button" class="btn" onclick="saveData()" style="width: 100%; font-size: 18px; padding: 15px;">
-                Salvar Dados
-            </button>
-        </div>
+            <div id="alerts"></div>
 
-        <div id="loading" class="loading">
-            <div class="spinner"></div>
-            <p>Salvando dados...</p>
+            <div id="dataSection" class="form-section" style="display: none;">
+                <h2>Dados por HOUSE</h2>
+                <div id="housesData"></div>
+            </div>
+
+            <div id="loading" class="loading">
+                <div class="spinner"></div>
+                <p>Salvando dados...</p>
+            </div>
         </div>
     </div>
 
@@ -443,15 +520,19 @@
         // Estado da aplicação
         let houses = [];
         let houseData = {};
+        let selectedHouse = null;
 
         // Tipos de dados disponíveis
         const dataTypes = [
             { key: 'refs', label: 'Referências', placeholder: 'Digite uma referência' },
             { key: 'consignees', label: 'Consignatários', placeholder: 'Digite um consignatário' },
-            { key: 'entregas', label: 'Entregas', placeholder: 'Digite informação de entrega' },
+            { key: 'entregas', label: 'Entregas', placeholder: 'Digite uma entrega' },
             { key: 'dtas', label: 'DTAs', placeholder: 'Digite uma DTA' },
             { key: 'previsoes', label: 'Previsões', placeholder: 'Digite uma previsão' },
             { key: 'responsaveis', label: 'Responsáveis', placeholder: 'Digite um responsável' },
+        ];
+
+        const specialDataTypes = [
             { key: 'observacoes', label: 'Observações', placeholder: 'Digite uma observação' }
         ];
 
@@ -484,10 +565,7 @@
                 return { valid: false, message: 'HOUSE é obrigatório' };
             }
 
-            if (normalized.length > 11) {
-                return { valid: false, message: 'HOUSE contém mais de 11 caracteres' };
-            }
-
+            // Length check is now handled by the stripping logic in addHouses
             return { valid: true };
         }
 
@@ -497,7 +575,7 @@
 
             field.classList.add('input-error');
             field.classList.remove('input-valid');
-            errorDiv.textContent = message;
+            errorDiv.innerHTML = message; // Use innerHTML to render <br> tags
             errorDiv.style.display = 'block';
         }
 
@@ -530,47 +608,6 @@
                 }
             });
 
-            // Validação e auto-ajuste em tempo real para HOUSE
-            document.getElementById('newHouse').addEventListener('input', function(e) {
-                const input = e.target;
-                const originalValue = input.value.trim().toUpperCase();
-                const trimInfoDiv = document.getElementById('houseTrimInfo');
-
-                if (originalValue.length > 11) {
-                    const toRemoveCount = originalValue.length - 11;
-                    const removedPart = originalValue.substring(0, toRemoveCount);
-                    const keptPart = originalValue.substring(toRemoveCount);
-
-                    // Atualiza o valor do input
-                    input.value = keptPart;
-
-                    // Mostra a mensagem informativa
-                    trimInfoDiv.textContent = `Original: ${originalValue}, Removido: "${removedPart}"`;
-                    trimInfoDiv.style.display = 'block';
-                } else {
-                    trimInfoDiv.style.display = 'none';
-                }
-
-                // Validação normal
-                const validation = validateHOUSE(input.value);
-                if (!validation.valid && input.value.trim()) {
-                    showFieldError('newHouse', 'houseError', validation.message);
-                } else if (validation.valid) {
-                    clearFieldError('newHouse', 'houseError');
-                } else {
-                    const field = document.getElementById('newHouse');
-                    const errorDiv = document.getElementById('houseError');
-                    field.classList.remove('input-error', 'input-valid');
-                    errorDiv.style.display = 'none';
-                }
-            });
-
-            // Enter key para adicionar house
-            document.getElementById('newHouse').addEventListener('keypress', function(e) {
-                if (e.key === 'Enter') {
-                    addHouse();
-                }
-            });
         });
 
         // Carrega lista de planilhas disponíveis
@@ -597,91 +634,125 @@
 
         function toggleExport(house) {
             const isChecked = document.getElementById(`exportToggle_${house}`).checked;
-            const entregaInput = document.getElementById(`entregas_${house}`);
-            const entregaButton = document.getElementById(`entregas_${house}_btn`);
+            const entregas = houseData[house]['entregas'] || [];
 
             if (isChecked) {
-                // Se o toggle de exportação for ativado, preenche e desativa o campo de entrega
-                houseData[house]['entregas'] = ['EXPORTAÇÃO'];
-                entregaInput.value = 'EXPORTAÇÃO';
-                entregaInput.disabled = true;
-                entregaButton.disabled = true;
-                updateDataSection(); // Re-renderiza para mostrar o valor
+                // Add 'EXPORTAÇÃO' if it's not already there
+                if (!entregas.includes('EXPORTAÇÃO')) {
+                    entregas.push('EXPORTAÇÃO');
+                }
             } else {
-                // Se desativado, limpa e reativa o campo
-                houseData[house]['entregas'] = [];
-                entregaInput.value = '';
-                entregaInput.disabled = false;
-                entregaButton.disabled = false;
-                updateDataSection();
+                // Remove 'EXPORTAÇÃO' but keep other values
+                const index = entregas.indexOf('EXPORTAÇÃO');
+                if (index > -1) {
+                    entregas.splice(index, 1);
+                }
             }
+            houseData[house]['entregas'] = entregas;
+            updateDataSection();
+        }
+
+        function clearHouses() {
+            houses = [];
+            houseData = {};
+            selectedHouse = null;
+            updateHousesDisplay();
+            updateDataSection();
         }
 
         function toggleFridge(house) {
             const isChecked = document.getElementById(`fridgeToggle_${house}`).checked;
-            const fridgeOptions = document.getElementById(`fridgeOptions_${house}`);
-
-            fridgeOptions.style.display = isChecked ? 'block' : 'none';
-
-            if (!isChecked) {
-                // Se o toggle for desativado, limpa a seleção e o campo de observação
-                document.getElementById(`fridgeType_${house}`).value = '';
-                houseData[house]['observacoes'] = [];
-                updateDataSection();
+            if (isChecked) {
+                houseData[house]['observacoes'] = ['FRI']; // Default value
+            } else {
+                const fridgeCodes = ["FRI", "FRO", "COL", "ERT", "CRT"];
+                const currentObs = houseData[house]?.observacoes?.[0] || '';
+                if (fridgeCodes.includes(currentObs)) {
+                    houseData[house]['observacoes'] = [];
+                }
             }
+            updateDataSection();
         }
 
         function setFridgeType(house) {
             const value = document.getElementById(`fridgeType_${house}`).value;
-            const obsInput = document.getElementById(`observacoes_${house}`);
-            const obsButton = document.getElementById(`observacoes_${house}_btn`);
-
-            if (value) {
-                houseData[house]['observacoes'] = [value];
-                obsInput.value = value;
-                obsInput.disabled = true;
-                obsButton.disabled = true;
-            } else {
-                houseData[house]['observacoes'] = [];
-                obsInput.disabled = false;
-                obsButton.disabled = false;
-            }
+            houseData[house]['observacoes'] = value ? [value] : [];
             updateDataSection();
         }
 
         // Adiciona um novo HOUSE
         function addHouse() {
-            const input = document.getElementById('newHouse');
-            const house = input.value.trim().toUpperCase();
+            const input = document.getElementById('newHouses');
+            addHouses();
+        }
 
-            // Validação do HOUSE
-            const validation = validateHOUSE(house);
-            if (!validation.valid) {
-                showFieldError('newHouse', 'houseError', validation.message);
-                return;
+        function addHouses() {
+            const input = document.getElementById('newHouses');
+            const houseValues = input.value.trim().split('\n').filter(h => h.trim() !== '');
+            const errorDiv = document.getElementById('houseError');
+
+            let warnings = [];
+            let errors = [];
+            let housesToAdd = [];
+            const potentialHouses = new Set();
+
+            // Step 1: Process all inputs and collect errors, warnings, and valid houses
+            for (const originalValue of houseValues) {
+                let house = originalValue.trim().toUpperCase();
+
+                if (house.length > 11) {
+                    const originalForWarning = house;
+                    house = house.substring(house.length - 11);
+                    warnings.push(`Original: "${originalForWarning}", cortado para: "${house}"`);
+                }
+
+                const validation = validateHOUSE(house);
+                if (!validation.valid) {
+                    errors.push(`"${originalValue}" inválido: ${validation.message}`);
+                    continue;
+                }
+
+                if (houses.includes(house) || potentialHouses.has(house)) {
+                    errors.push(`"${originalValue}" resulta em um HOUSE duplicado: "${house}"`);
+                    continue;
+                }
+
+                potentialHouses.add(house);
+                housesToAdd.push(house);
             }
 
-            if (houses.includes(house)) {
-                showFieldError('newHouse', 'houseError', 'Este HOUSE já foi adicionado');
-                return;
+            // Step 2: Display errors OR warnings. Errors take precedence.
+            if (errors.length > 0) {
+                showFieldError('newHouses', 'houseError', errors.join('<br>'));
+                return; // Stop execution
             }
 
-            // Limpa erro se chegou até aqui
-            clearFieldError('newHouse', 'houseError');
+            if (warnings.length > 0) {
+                errorDiv.innerHTML = `<strong>Avisos:</strong><br>${warnings.join('<br>')}`;
+                errorDiv.style.color = '#666';
+                errorDiv.style.display = 'block';
+                input.classList.remove('input-error');
+                input.classList.add('input-valid');
+            } else {
+                // Only clear if there were no errors and no warnings
+                clearFieldError('newHouses', 'houseError');
+            }
 
-            houses.push(house);
-            houseData[house] = {};
+            // Step 3: If we are here, there were no errors. Add the houses and update UI.
+            if (housesToAdd.length > 0) {
+                housesToAdd.forEach(houseName => {
+                    houses.push(houseName);
+                    houseData[houseName] = {};
+                    dataTypes.forEach(type => houseData[houseName][type.key] = []);
+                    specialDataTypes.forEach(type => houseData[houseName][type.key] = []);
+                });
 
-            // Inicializa dados para o house
-            dataTypes.forEach(type => {
-                houseData[house][type.key] = [];
-            });
-
-            input.value = '';
-            // Remove classes de validação do campo limpo
-            input.classList.remove('input-valid', 'input-error');
-            updateHousesDisplay();
-            updateDataSection();
+                input.value = '';
+                updateHousesDisplay();
+                if (housesToAdd.length === 1) {
+                    selectHouse(houses[houses.length - 1]);
+                }
+            }
         }
 
 
@@ -691,153 +762,200 @@
             if (index > -1) {
                 houses.splice(index, 1);
                 delete houseData[house];
+                if (selectedHouse === house) {
+                    selectedHouse = null;
+                }
                 updateHousesDisplay();
                 updateDataSection();
             }
         }
 
-        // Atualiza a exibição da lista de HOUSES
-        function updateHousesDisplay() {
-            const container = document.getElementById('housesList');
+        function editHouseName(index) {
+            console.log("editHouseName called for index:", index);
+            const span = document.getElementById(`house-name-${index}`);
+            const currentName = span.textContent;
+            span.innerHTML = `<input type="text" id="edit-house-${index}" value="${currentName}"
+                                     onblur="saveHouseName(${index})"
+                                     onkeypress="handleHouseNameKey(event, ${index})">`;
+            document.getElementById(`edit-house-${index}`).focus();
+        }
 
-            if (houses.length === 0) {
-                container.innerHTML = `
-                    <div class="empty-state">
-                        <p>Nenhum HOUSE adicionado ainda</p>
-                        <small>Digite um HOUSE acima e clique em "Adicionar"</small>
-                    </div>
-                `;
+        function handleHouseNameKey(event, index) {
+            if (event.key === 'Enter') {
+                saveHouseName(index);
+            } else if (event.key === 'Escape') {
+                updateHousesDisplay(); // Revert changes
+            }
+        }
+
+        function saveHouseName(index) {
+            const input = document.getElementById(`edit-house-${index}`);
+            const newName = input.value.trim().toUpperCase();
+            const oldName = houses[index];
+
+            if (newName === oldName) {
+                updateHousesDisplay();
                 return;
             }
 
-            container.innerHTML = houses.map(house => `
-                <div class="house-item">
-                    <div class="house-header">
-                        <span class="house-title">${house}</span>
-                        <button type="button" class="btn btn-danger" onclick="removeHouse('${house}')">
-                            Remover
-                        </button>
-                    </div>
-                </div>
-            `).join('');
+            const validation = validateHOUSE(newName);
+            if (!validation.valid) {
+                showAlert(`Nome de HOUSE inválido: ${validation.message}`, 'error');
+                updateHousesDisplay();
+                return;
+            }
+
+            if (houses.includes(newName)) {
+                showAlert(`HOUSE "${newName}" já existe.`, 'error');
+                updateHousesDisplay();
+                return;
+            }
+
+            // Update state
+            houses[index] = newName;
+            houseData[newName] = houseData[oldName];
+            delete houseData[oldName];
+            if (selectedHouse === oldName) {
+                selectedHouse = newName;
+            }
+
+            updateHousesDisplay();
         }
 
-        // Atualiza a seção de dados
+        // Seleciona um HOUSE para edição
+        function selectHouse(house) {
+            if (selectedHouse === house) return;
+
+            // Remove 'selected' class from previously selected item
+            if (selectedHouse) {
+                const oldItem = document.getElementById(`house-list-item-${selectedHouse}`);
+                if (oldItem) {
+                    oldItem.classList.remove('selected');
+                }
+            }
+
+            selectedHouse = house;
+
+            // Add 'selected' class to the newly selected item
+            const newItem = document.getElementById(`house-list-item-${house}`);
+            if (newItem) {
+                newItem.classList.add('selected');
+            }
+
+            updateDataSection();
+        }
+
+        // Atualiza a exibição da lista de HOUSES
+        function updateHousesDisplay() {
+            const container = document.getElementById('housesList');
+            if (houses.length === 0) {
+                container.innerHTML = `<div class="empty-state"><p>Nenhum HOUSE adicionado</p></div>`;
+                return;
+            }
+
+            let html = `
+                <ul class="house-list">
+                    ${houses.map((house, index) => `
+                        <li class="house-list-item ${selectedHouse === house ? 'selected' : ''}"
+                            id="house-list-item-${house}"
+                            onclick="selectHouse('${house}')"
+                            ondblclick="editHouseName(${index})">
+                            <span id="house-name-${index}">${house}</span>
+                            <button class="remove-house-btn" onclick="event.stopPropagation(); removeHouse('${house}');">×</button>
+                        </li>
+                    `).join('')}
+                </ul>
+            `;
+
+            if (houses.length > 0) {
+                html += `<button type="button" class="btn btn-secondary" style="margin-top: 10px;" onclick="clearHouses()">Limpar</button>`;
+            }
+
+            container.innerHTML = html;
+        }
+
         function updateDataSection() {
             const section = document.getElementById('dataSection');
             const container = document.getElementById('housesData');
 
-            if (houses.length === 0) {
-                section.style.display = 'none';
+            if (!selectedHouse) {
+                section.style.display = 'block';
+                container.innerHTML = `
+            <div class="empty-state">
+                <h2>Selecione um HOUSE</h2>
+                <p>Clique em um HOUSE na lista à esquerda para ver ou editar seus dados.</p>
+            </div>
+        `;
                 return;
             }
 
+            const house = selectedHouse;
             section.style.display = 'block';
+            container.innerHTML = `
+        <div class="house-item-header">
+            <h2 class="house-title">Dados para ${house}</h2>
+        </div>
 
-            container.innerHTML = houses.map(house => `
-                <div class="house-item">
-                    <h3 class="house-title">Dados para ${house}</h3>
-
-                    <div class="toggle-container">
-                        <label class="switch">
-                            <input type="checkbox" id="exportToggle_${house}" onchange="toggleExport('${house}')">
-                            <span class="slider"></span>
-                        </label>
-                        <label for="exportToggle_${house}">Exportação</label>
-                    </div>
-
-                    <div class="toggle-container">
-                        <label class="switch">
-                            <input type="checkbox" id="fridgeToggle_${house}" onchange="toggleFridge('${house}')">
-                            <span class="slider"></span>
-                        </label>
-                        <label for="fridgeToggle_${house}">Carga de Geladeira</label>
-                    </div>
-
-                    <div id="fridgeOptions_${house}" style="display: none; margin-bottom: 20px;">
-                        <label for="fridgeType_${house}">Tipo de Carga de Geladeira:</label>
-                        <select id="fridgeType_${house}" onchange="setFridgeType('${house}')">
-                            <option value="">Selecione...</option>
-                            <option value="FRI">FRI</option>
-                            <option value="FRO">FRO</option>
-                            <option value="COL">COL</option>
-                            <option value="ERT">ERT</option>
-                            <option value="CRT">CRT</option>
-                        </select>
-                    </div>
-
-                    <div class="data-grid">
-                        ${dataTypes.map(type => {
-                            const hasValue = houseData[house] && houseData[house][type.key] && houseData[house][type.key].length > 0;
-                            const inputId = `${type.key}_${house}`;
-                            const buttonId = `${type.key}_${house}_btn`;
-
-                            return `
-                                <div class="data-section">
-                                    <h3>${type.label}</h3>
-                                    <div class="data-entry">
-                                        <input type="text"
-                                               id="${inputId}"
-                                               placeholder="${hasValue ? 'Campo preenchido' : type.placeholder}"
-                                               onkeypress="handleDataEntry(event, '${type.key}', '${house}')"
-                                               onpaste="handlePaste(event, '${type.key}', '${house}')"
-                                               ${hasValue ? 'disabled class="input-disabled"' : ''}>
-                                        <button type="button"
-                                                id="${buttonId}"
-                                                class="btn ${hasValue ? 'btn-disabled' : 'btn-secondary'}"
-                                                onclick="addDataEntry('${type.key}', '${house}')"
-                                                ${hasValue ? 'disabled' : ''}>
-                                            ${hasValue ? 'Preenchido' : 'Adicionar'}
-                                        </button>
-                                    </div>
-                                    <div id="${type.key}_${house}_list">
-                                        ${renderDataDisplay(type.key, house)}
-                                    </div>
-                                </div>
-                            `;
-                        }).join('')}
-                    </div>
-                </div>
-            `).join('');
+        <div class="toggles-section">
+            <div class="toggle-container">
+                <label class="switch">
+                    <input type="checkbox" id="exportToggle_${house}" onchange="toggleExport('${house}')">
+                    <span class="slider"></span>
+                </label>
+                <label for="exportToggle_${house}">Exportação</label>
+            </div>
+            <div class="toggle-container">
+                <label class="switch">
+                    <input type="checkbox" id="fridgeToggle_${house}" onchange="toggleFridge('${house}')">
+                    <span class="slider"></span>
+                </label>
+                <label for="fridgeToggle_${house}">Carga de Geladeira</label>
+            </div>
+            <div id="fridgeOptions_${house}" style="display: none; margin-top: 10px;">
+                <label for="fridgeType_${house}">Tipo:</label>
+                <select id="fridgeType_${house}" onchange="setFridgeType('${house}')">
+                    <option value="">Selecione...</option>
+                    <option value="FRI">FRI</option>
+                    <option value="FRO">FRO</option>
+                    <option value="COL">COL</option>
+                    <option value="ERT">ERT</option>
+                    <option value="CRT">CRT</option>
+                </select>
+            </div>
+        </div>
+        <div class="data-grid">
+            ${dataTypes.map(type => renderDataField(type, house)).join('')}
+        </div>
+        <div class="special-data-section">
+            ${specialDataTypes.map(type => renderDataField(type, house)).join('')}
+        </div>
+    `;
+            syncToggles(house);
         }
 
-        // Renderiza exibição de dados com novo visual
-        function renderDataDisplay(dataType, house) {
-            const data = houseData[house][dataType] || [];
+        function renderDataField(type, house) {
+            const hasValue = houseData[house] && houseData[house][type.key] && houseData[house][type.key].length > 0;
+            const value = hasValue ? houseData[house][type.key][0] : '';
+            const inputId = `${type.key}_${house}`;
 
-            if (data.length === 0) {
-                return '<p style="color: #6c757d; font-style: italic; margin-top: 10px;">Nenhum item adicionado</p>';
-            }
-
-            // Como só permitimos um valor, pegamos o primeiro
-            const value = data[0];
             return `
-                <div class="value-display">
-                    <span>${value}</span>
-                    <div>
-                        <button type="button"
-                                class="edit-value-btn"
-                                onclick="editDataEntry('${dataType}', '${house}')"
-                                title="Editar valor">
-                            ✏️
-                        </button>
-                        <button type="button"
-                                class="remove-value-btn"
-                                onclick="removeDataEntry('${dataType}', '${house}', 0)"
-                                title="Remover valor">
-                            ×
-                        </button>
+                <div class="data-section">
+                    <h3>${type.label}</h3>
+                    <div class="data-entry-wrapper" id="wrapper-${inputId}">
+                        ${hasValue ? `
+                            <div class="value-display" onclick="editDataEntry('${type.key}', '${house}')">
+                                <span>${value}</span>
+                                <button class="edit-value-btn">✏️</button>
+                            </div>
+                        ` : `
+                            <div class="data-entry">
+                                <input type="text" id="${inputId}" placeholder="${type.placeholder}" onkeypress="handleDataEntry(event, '${type.key}', '${house}')" onpaste="handlePaste(event, '${type.key}', '${house}')">
+                                <button type="button" class="btn btn-secondary" onclick="addDataEntry('${type.key}', '${house}')">Adicionar</button>
+                            </div>
+                        `}
                     </div>
-                </div>
-                <div class="success-indicator">
-                    Valor adicionado com sucesso
                 </div>
             `;
-        }
-
-        // Função auxiliar para manter compatibilidade (se necessário)
-        function renderDataList(dataType, house) {
-            return renderDataDisplay(dataType, house);
         }
 
         // Manipula entrada de dados com Enter
@@ -848,86 +966,74 @@
         }
 
         function handlePaste(event, dataType, house) {
-            // Previne a ação padrão de colar para evitar dupla inserção
             event.preventDefault();
-
-            // Pega o texto da área de transferência
             const pastedText = (event.clipboardData || window.clipboardData).getData('text');
-
-            // Coloca o texto no campo e o adiciona
-            const input = document.getElementById(`${dataType}_${house}`);
-            input.value = pastedText;
-            addDataEntry(dataType, house);
+            if (dataType === 'house') {
+                const input = document.getElementById('newHouses');
+                input.value += pastedText;
+                addHouses();
+            } else {
+                const input = document.getElementById(`${dataType}_${house}`);
+                input.value = pastedText;
+                addDataEntry(dataType, house);
+            }
         }
 
         function editDataEntry(dataType, house) {
             const value = houseData[house][dataType][0];
+            const inputId = `${dataType}_${house}`;
+            const wrapper = document.getElementById(`wrapper-${inputId}`);
 
-            // Primeiro, remove o valor existente para reativar o campo
-            removeDataEntry(dataType, house, 0);
-
-            // Em seguida, preenche o campo com o valor antigo para edição
-            const input = document.getElementById(`${dataType}_${house}`);
-            input.value = value;
-            input.focus();
+            wrapper.innerHTML = `
+                <div class="data-entry">
+                    <input type="text" id="${inputId}" value="${value}">
+                    <button type="button" class="btn" onclick="saveDataEntry('${dataType}', '${house}')">Salvar</button>
+                    <button type="button" class="btn btn-secondary" onclick="cancelEdit('${dataType}', '${house}')">Cancelar</button>
+                </div>
+            `;
+            document.getElementById(inputId).focus();
         }
 
         // Adiciona entrada de dados (apenas um valor por input)
         function addDataEntry(dataType, house) {
             const input = document.getElementById(`${dataType}_${house}`);
-            const button = document.getElementById(`${dataType}_${house}_btn`);
             const value = input.value.trim();
-
-            if (!value) return;
-
-            // Verifica se já existe um valor para este tipo de dados
-            if (houseData[house][dataType].length > 0) {
-                showAlert('Apenas um valor é permitido por campo. Remova o valor existente primeiro.', 'error');
-                return;
+            if (value) {
+                houseData[house][dataType] = [value];
+                updateDataSection();
             }
-
-            // Adiciona o valor
-            houseData[house][dataType].push(value);
-
-            // Atualiza o estado visual do input e botão
-            input.value = '';
-            input.disabled = true;
-            input.placeholder = 'Campo preenchido';
-            input.classList.add('input-disabled');
-
-            button.disabled = true;
-            button.textContent = 'Preenchido';
-            button.classList.remove('btn-secondary');
-            button.classList.add('btn-disabled');
-
-            // Atualiza a exibição do valor
-            const listContainer = document.getElementById(`${dataType}_${house}_list`);
-            listContainer.innerHTML = renderDataDisplay(dataType, house);
         }
 
-        // Remove entrada de dados
-        function removeDataEntry(dataType, house, index) {
+        function saveDataEntry(dataType, house) {
             const input = document.getElementById(`${dataType}_${house}`);
-            const button = document.getElementById(`${dataType}_${house}_btn`);
-
-            // Remove o valor
-            houseData[house][dataType].splice(index, 1);
-
-            // Reabilita o input e botão
-            input.disabled = false;
-            input.placeholder = dataTypes.find(t => t.key === dataType).placeholder;
-            input.classList.remove('input-disabled');
-            input.focus(); // Foca no campo para facilitar nova entrada
-
-            button.disabled = false;
-            button.textContent = 'Adicionar';
-            button.classList.remove('btn-disabled');
-            button.classList.add('btn-secondary');
-
-            // Atualiza a exibição
-            const listContainer = document.getElementById(`${dataType}_${house}_list`);
-            listContainer.innerHTML = renderDataDisplay(dataType, house);
+            const value = input.value.trim();
+            if (value) {
+                houseData[house][dataType] = [value];
+            } else {
+                houseData[house][dataType] = [];
+            }
+            updateDataSection();
         }
+
+        function cancelEdit(dataType, house) {
+            updateDataSection();
+        }
+
+        function syncToggles(house) {
+            const isExport = houseData[house]?.entregas?.includes('EXPORTAÇÃO') || false;
+            document.getElementById(`exportToggle_${house}`).checked = isExport;
+            document.getElementById(`wrapper-entregas_${house}`).style.display = isExport ? 'none' : 'block';
+
+            const fridgeCodes = ["FRI", "FRO", "COL", "ERT", "CRT"];
+            const currentObs = houseData[house]?.observacoes?.[0] || '';
+            const isFridge = fridgeCodes.includes(currentObs);
+            document.getElementById(`fridgeToggle_${house}`).checked = isFridge;
+            document.getElementById(`fridgeOptions_${house}`).style.display = isFridge ? 'block' : 'none';
+            if (isFridge) {
+                document.getElementById(`fridgeType_${house}`).value = currentObs;
+            }
+        }
+
 
         // Salva os dados
         async function saveData() {
@@ -967,14 +1073,15 @@
                 observacoes: []
             };
 
-            // Coleta todos os dados
+            // Coleta todos os dados de forma explícita para evitar erros
             houses.forEach(house => {
-                dataTypes.forEach(type => {
-                    const data = houseData[house][type.key] || [];
-                    data.forEach(value => {
-                        payload[type.key].push({ house, value });
-                    });
-                });
+                (houseData[house].refs || []).forEach(value => payload.refs.push({house, value}));
+                (houseData[house].consignees || []).forEach(value => payload.consignees.push({house, value}));
+                (houseData[house].entregas || []).forEach(value => payload.entregas.push({house, value}));
+                (houseData[house].dtas || []).forEach(value => payload.dtas.push({house, value}));
+                (houseData[house].previsoes || []).forEach(value => payload.previsoes.push({house, value}));
+                (houseData[house].responsaveis || []).forEach(value => payload.responsaveis.push({house, value}));
+                (houseData[house].observacoes || []).forEach(value => payload.observacoes.push({house, value}));
             });
 
             // Mostra loading
@@ -1018,8 +1125,10 @@
             document.getElementById('mawb').value = '';
             houses = [];
             houseData = {};
+            selectedHouse = null;
             updateHousesDisplay();
             updateDataSection();
+            document.getElementById('dataSection').style.display = 'none';
         }
 
         // Mostra alertas
