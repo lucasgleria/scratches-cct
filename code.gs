@@ -346,31 +346,70 @@ function saveEntries(payload) {
       }
     });
 
-    pendingUpdates.forEach(update => {
-      const range = ws.getRange(update.rowIndex, 1, 1, 9);
-      range.setNumberFormat('@');
-      range.setValues([update.row]);
-      range.setBackgrounds([getRowColors(update.row, ss.getName())]);
-    });
+    if (pendingUpdates.length > 0) {
+      pendingUpdates.sort((a, b) => a.rowIndex - b.rowIndex);
 
-    if (duplicatesToDelete.length) {
-      duplicatesToDelete.sort((a, b) => b - a).forEach(r => ws.deleteRow(r));
+      let batchStart = 0;
+      for (let i = 1; i <= pendingUpdates.length; i++) {
+        if (i === pendingUpdates.length || pendingUpdates[i].rowIndex !== pendingUpdates[i - 1].rowIndex + 1) {
+          const batchEnd = i;
+          const batch = pendingUpdates.slice(batchStart, batchEnd);
+
+          const startRow = batch[0].rowIndex;
+          const numRows = batch.length;
+          const rowsData = batch.map(u => u.row);
+          const rowsColors = rowsData.map(r => getRowColors(r, ss.getName()));
+
+          const range = ws.getRange(startRow, 1, numRows, 9);
+          range.setNumberFormat('@');
+          range.setValues(rowsData);
+          range.setBackgrounds(rowsColors);
+
+          batchStart = i;
+        }
+      }
+    }
+
+    if (duplicatesToDelete.length > 0) {
+      duplicatesToDelete.sort((a, b) => b - a);
+
+      let i = 0;
+      while (i < duplicatesToDelete.length) {
+        const startRow = duplicatesToDelete[i];
+        let count = 1;
+        while (i + count < duplicatesToDelete.length && duplicatesToDelete[i + count] === startRow - count) {
+          count++;
+        }
+
+        const actualStartRow = startRow - count + 1;
+        ws.deleteRows(actualStartRow, count);
+
+        i += count;
+      }
     }
 
     if (toInsert.length) {
       let insertRow;
+      const lastRow = ws.getLastRow();
+
       if (occurrences.length > 0) {
-        insertRow = endRow + 1;
-        ws.insertRowsAfter(endRow, toInsert.length);
+          // Find the end of the MAWB block, accounting for any blank separator rows
+          let blockEndRow = endRow;
+          while(blockEndRow < lastRow && ws.getRange(blockEndRow + 1, 1).isBlank()) {
+              blockEndRow++;
+          }
+          insertRow = blockEndRow + 1;
       } else {
-        const lastRow = ws.getLastRow();
-        insertRow = lastRow === 0 ? 1 : lastRow + 2;
+          // No existing MAWB, add after the last content row + a blank separator
+          insertRow = lastRow === 0 ? 1 : lastRow + 2;
       }
+
       const range = ws.getRange(insertRow, 1, toInsert.length, 9);
       range.setNumberFormat('@');
       range.setValues(toInsert);
       range.setBackgrounds(toInsert.map(row => getRowColors(row, ss.getName())));
     }
+
 
     return _asOk({
       inserted: toInsert.length,

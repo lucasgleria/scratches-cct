@@ -891,6 +891,14 @@
 
             const house = selectedHouse;
             section.style.display = 'block';
+
+            // Check if the content is already there to avoid re-rendering
+            const existingHeader = container.querySelector('.house-item-header .house-title');
+            if (existingHeader && existingHeader.textContent === `Dados para ${house}`) {
+                syncToggles(house); // Just sync toggles if the main content is already correct
+                return;
+            }
+
             container.innerHTML = `
         <div class="house-item-header">
             <h2 class="house-title">Dados para ${house}</h2>
@@ -939,22 +947,37 @@
             const inputId = `${type.key}_${house}`;
 
             return `
-                <div class="data-section">
-                    <h3>${type.label}</h3>
-                    <div class="data-entry-wrapper" id="wrapper-${inputId}">
-                        ${hasValue ? `
-                            <div class="value-display" onclick="editDataEntry('${type.key}', '${house}')">
-                                <span>${value}</span>
-                                <button class="edit-value-btn">✏️</button>
-                            </div>
-                        ` : `
-                            <div class="data-entry">
-                                <input type="text" id="${inputId}" placeholder="${type.placeholder}" onkeypress="handleDataEntry(event, '${type.key}', '${house}')" onpaste="handlePaste(event, '${type.key}', '${house}')" onblur="addDataEntry('${type.key}', '${house}')">
-                            </div>
-                        `}
-                    </div>
-                </div>
-            `;
+        <div class="data-section" id="section-${inputId}">
+            <h3>${type.label}</h3>
+            <div class="data-entry-wrapper" id="wrapper-${inputId}">
+                ${renderDataContent(type, house)}
+            </div>
+        </div>
+    `;
+        }
+
+        function renderDataContent(type, house) {
+            const hasValue = houseData[house] && houseData[house][type.key] && houseData[house][type.key].length > 0;
+            const value = hasValue ? houseData[house][type.key][0] : '';
+            const inputId = `${type.key}_${house}`;
+
+            if (hasValue) {
+                return `
+            <div class="value-display" onclick="editDataEntry('${type.key}', '${house}')">
+                <span>${value}</span>
+                <button class="edit-value-btn">✏️</button>
+            </div>
+        `;
+            } else {
+                return `
+            <div class="data-entry">
+                <input type="text" id="${inputId}" placeholder="${type.placeholder}"
+                       onkeypress="handleDataEntry(event, '${type.key}', '${house}')"
+                       onpaste="handlePaste(event, '${type.key}', '${house}')"
+                       onblur="addDataEntry('${type.key}', '${house}')">
+            </div>
+        `;
+            }
         }
 
         // Manipula entrada de dados com Enter
@@ -1002,26 +1025,49 @@
         // Adiciona entrada de dados (apenas um valor por input)
         function addDataEntry(dataType, house) {
             const input = document.getElementById(`${dataType}_${house}`);
+            if (!input) return; // Input might not exist if blurred after re-render
             const value = input.value.trim();
             if (value) {
+                if (!houseData[house]) houseData[house] = {};
                 houseData[house][dataType] = [value];
-                updateDataSection();
+
+                // --- Targeted DOM Update ---
+                const wrapper = document.getElementById(`wrapper-${dataType}_${house}`);
+                const type = [...dataTypes, ...specialDataTypes].find(t => t.key === dataType);
+                if (wrapper && type) {
+                    wrapper.innerHTML = renderDataContent(type, house);
+                }
             }
         }
 
         function saveDataEntry(dataType, house) {
             const input = document.getElementById(`${dataType}_${house}`);
+             if (!input) return;
             const value = input.value.trim();
+
+            if (!houseData[house]) houseData[house] = {};
+
             if (value) {
                 houseData[house][dataType] = [value];
             } else {
                 houseData[house][dataType] = [];
             }
-            updateDataSection();
+
+            // --- Targeted DOM Update ---
+            const wrapper = document.getElementById(`wrapper-${dataType}_${house}`);
+            const type = [...dataTypes, ...specialDataTypes].find(t => t.key === dataType);
+            if (wrapper && type) {
+                wrapper.innerHTML = renderDataContent(type, house);
+            }
         }
 
         function cancelEdit(dataType, house) {
-            updateDataSection();
+            // --- Targeted DOM Update ---
+            const wrapper = document.getElementById(`wrapper-${dataType}_${house}`);
+            const type = [...dataTypes, ...specialDataTypes].find(t => t.key === dataType);
+            if (wrapper && type) {
+                wrapper.innerHTML = renderDataContent(type, house);
+            }
         }
 
         function syncToggles(house) {
