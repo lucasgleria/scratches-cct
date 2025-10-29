@@ -949,8 +949,7 @@
                             </div>
                         ` : `
                             <div class="data-entry">
-                                <input type="text" id="${inputId}" placeholder="${type.placeholder}" onkeypress="handleDataEntry(event, '${type.key}', '${house}')" onpaste="handlePaste(event, '${type.key}', '${house}')">
-                                <button type="button" class="btn btn-secondary" onclick="addDataEntry('${type.key}', '${house}')">Adicionar</button>
+                                <input type="text" id="${inputId}" placeholder="${type.placeholder}" onkeypress="handleDataEntry(event, '${type.key}', '${house}')" onpaste="handlePaste(event, '${type.key}', '${house}')" onblur="addDataEntry('${type.key}', '${house}')">
                             </div>
                         `}
                     </div>
@@ -986,12 +985,18 @@
 
             wrapper.innerHTML = `
                 <div class="data-entry">
-                    <input type="text" id="${inputId}" value="${value}">
-                    <button type="button" class="btn" onclick="saveDataEntry('${dataType}', '${house}')">Salvar</button>
-                    <button type="button" class="btn btn-secondary" onclick="cancelEdit('${dataType}', '${house}')">Cancelar</button>
+                    <input type="text" id="${inputId}" value="${value}" onblur="saveDataEntry('${dataType}', '${house}')" onkeypress="handleEditKey(event, '${dataType}', '${house}')">
                 </div>
             `;
             document.getElementById(inputId).focus();
+        }
+
+        function handleEditKey(event, dataType, house) {
+            if (event.key === 'Enter') {
+                saveDataEntry(dataType, house);
+            } else if (event.key === 'Escape') {
+                cancelEdit(dataType, house);
+            }
         }
 
         // Adiciona entrada de dados (apenas um valor por input)
