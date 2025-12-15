@@ -89,9 +89,14 @@ function doGet() {
 /** Retorna o conteúdo HTML para uma view específica */
 function getHtmlForView(viewName) {
   if (viewName === 'importacao' || viewName === 'exportacao') {
-    return HtmlService.createHtmlOutputFromFile(viewName).getContent();
+    return HtmlService.createTemplateFromFile(viewName).evaluate().getContent();
   }
   return '<div>View não encontrada</div>';
+}
+
+/** Função para incluir arquivos CSS/JS externos se necessário */
+function include(filename) {
+  return HtmlService.createHtmlOutputFromFile(filename).getContent();
 }
 
 /** Retorna a lista de planilhas disponíveis */
