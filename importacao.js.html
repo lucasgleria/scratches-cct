@@ -71,25 +71,22 @@
         }
 
         // Inicialização
-        document.addEventListener('DOMContentLoaded', function() {
-            loadSpreadsheets();
+        loadSpreadsheets();
 
-            // Validação em tempo real para MAWB
-            document.getElementById('mawb').addEventListener('input', function(e) {
-                const validation = validateMAWB(e.target.value);
-                if (!validation.valid && e.target.value.trim()) {
-                    showFieldError('mawb', 'mawbError', validation.message);
-                } else if (validation.valid) {
-                    clearFieldError('mawb', 'mawbError');
-                } else {
-                    // Campo vazio - limpa erro mas não mostra válido
-                    const field = document.getElementById('mawb');
-                    const errorDiv = document.getElementById('mawbError');
-                    field.classList.remove('input-error', 'input-valid');
-                    errorDiv.style.display = 'none';
-                }
-            });
-
+        // Validação em tempo real para MAWB
+        document.getElementById('mawb').addEventListener('input', function(e) {
+            const validation = validateMAWB(e.target.value);
+            if (!validation.valid && e.target.value.trim()) {
+                showFieldError('mawb', 'mawbError', validation.message);
+            } else if (validation.valid) {
+                clearFieldError('mawb', 'mawbError');
+            } else {
+                // Campo vazio - limpa erro mas não mostra válido
+                const field = document.getElementById('mawb');
+                const errorDiv = document.getElementById('mawbError');
+                field.classList.remove('input-error', 'input-valid');
+                errorDiv.style.display = 'none';
+            }
         });
 
         // Carrega lista de planilhas disponíveis
