@@ -81,10 +81,19 @@
                     const app = document.getElementById('app');
                     app.innerHTML = html;
 
-                    // Find and execute the script in the loaded HTML
+                    // Remove the old script to prevent conflicts
+                    const oldScript = document.getElementById('dynamic-view-script');
+                    if (oldScript) {
+                        oldScript.remove();
+                    }
+
+                    // Find the new script, create a new script element, and append it to the body
                     const scriptTag = app.querySelector('script');
                     if (scriptTag) {
-                        eval(scriptTag.innerHTML);
+                        const newScript = document.createElement('script');
+                        newScript.id = 'dynamic-view-script';
+                        newScript.textContent = scriptTag.textContent;
+                        document.body.appendChild(newScript);
                     }
                 })
                 .withFailureHandler(function(error) {
