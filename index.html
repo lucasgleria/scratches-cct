@@ -77,22 +77,14 @@
 
         function loadView(viewName) {
             google.script.run
-                .withSuccessHandler(function(content) {
+                .withSuccessHandler(function(html) {
                     const app = document.getElementById('app');
-                    app.innerHTML = content.html;
+                    app.innerHTML = html;
 
-                    // Remove old script if it exists
-                    const oldScript = document.getElementById('dynamic-script');
-                    if (oldScript) {
-                        oldScript.remove();
-                    }
-
-                    // Add new script if it exists
-                    if (content.js) {
-                        const script = document.createElement('script');
-                        script.id = 'dynamic-script';
-                        script.innerHTML = content.js;
-                        document.body.appendChild(script);
+                    // Find and execute the script in the loaded HTML
+                    const scriptTag = app.querySelector('script');
+                    if (scriptTag) {
+                        eval(scriptTag.innerHTML);
                     }
                 })
                 .withFailureHandler(function(error) {
