@@ -10,6 +10,14 @@
  *    * Se não há linhas vazias: adiciona separador + dados
  */
 
+/** Liste aqui as planilhas disponíveis para o usuário escolher. */
+const SPREADSHEETS = [
+  // Exemplo:
+  { id: '1Qrzq3NatjRtLE8CiQbMiWRHvwFgUKA5ymimoR6JAsV0', name: 'CCT Teste' },
+  { id: '1qgP2RIXiA5cjO-EdSUjti11r6jBXVJR0PeMotHoBAA4', name: 'CCT Teste 2' }
+  // Adicione mais planilhas aqui conforme necessário
+];
+
 /** Separador para múltiplos valores na mesma célula */
 const MULTI_JOIN = '; ';
 
@@ -103,19 +111,12 @@ function getHtmlForView(viewName) {
   return result;
 }
 
-/** Retorna a lista de planilhas disponíveis do Google Drive do usuário */
+/** Retorna a lista de planilhas disponíveis */
 function getSpreadsheets() {
   try {
-    const spreadsheets = [];
-    const files = DriveApp.getFilesByType(MimeType.GOOGLE_SHEETS);
-    while (files.hasNext()) {
-      const file = files.next();
-      spreadsheets.push({ id: file.getId(), name: file.getName() });
-    }
-    spreadsheets.sort((a, b) => a.name.localeCompare(b.name));
-    return _asOk(spreadsheets);
+    return _asOk(SPREADSHEETS);
   } catch (err) {
-    return _asError('Erro ao carregar planilhas do Google Drive.', err.message);
+    return _asError('Erro ao carregar planilhas', err.message);
   }
 }
 
