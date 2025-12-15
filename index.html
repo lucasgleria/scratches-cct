@@ -77,8 +77,23 @@
 
         function loadView(viewName) {
             google.script.run
-                .withSuccessHandler(function(html) {
-                    document.getElementById('app').innerHTML = html;
+                .withSuccessHandler(function(content) {
+                    const app = document.getElementById('app');
+                    app.innerHTML = content.html;
+
+                    // Remove old script if it exists
+                    const oldScript = document.getElementById('dynamic-script');
+                    if (oldScript) {
+                        oldScript.remove();
+                    }
+
+                    // Add new script if it exists
+                    if (content.js) {
+                        const script = document.createElement('script');
+                        script.id = 'dynamic-script';
+                        script.innerHTML = content.js;
+                        document.body.appendChild(script);
+                    }
                 })
                 .withFailureHandler(function(error) {
                     console.error('Error loading view:', error);

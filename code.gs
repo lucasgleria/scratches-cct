@@ -86,12 +86,29 @@ function doGet() {
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
-/** Retorna o conteúdo HTML para uma view específica */
+/** Retorna o conteúdo HTML e JS para uma view específica */
 function getHtmlForView(viewName) {
-  if (viewName === 'importacao' || viewName === 'exportacao') {
-    return HtmlService.createHtmlOutputFromFile(viewName).getContent();
+  const result = { html: '', js: '' };
+
+  try {
+    // Carrega o arquivo HTML principal
+    result.html = HtmlService.createHtmlOutputFromFile(viewName).getContent();
+
+    // Tenta carregar o arquivo JS correspondente
+    const jsViewName = viewName + '.js';
+    // Isso vai gerar uma exceção se o arquivo não existir, o que é esperado.
+    const jsTemplate = HtmlService.createTemplateFromFile(jsViewName);
+    result.js = jsTemplate.getRawContent();
+
+  } catch (e) {
+    // Se o arquivo .js.html não existir, apenas o HTML será retornado.
+    // Isso é esperado para views como 'exportacao'.
+    if (!result.html) {
+      return { html: '<div>View não encontrada</div>', js: '' };
+    }
   }
-  return '<div>View não encontrada</div>';
+
+  return result;
 }
 
 /** Retorna a lista de planilhas disponíveis */
