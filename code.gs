@@ -80,15 +80,17 @@ function validateHOUSE(house) {
 
 /** Serve a interface HTML */
 function doGet() {
-  return HtmlService.createTemplateFromFile('index')
-    .evaluate()
+  return HtmlService.createHtmlFromFile('index')
     .setTitle('Sistema de Gestão MAWB/HOUSE')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
-/** Função para incluir arquivos CSS/JS externos se necessário */
-function include(filename) {
-  return HtmlService.createHtmlOutputFromFile(filename).getContent();
+/** Retorna o conteúdo HTML para uma view específica */
+function getHtmlForView(viewName) {
+  if (viewName === 'importacao' || viewName === 'exportacao') {
+    return HtmlService.createHtmlOutputFromFile(viewName).getContent();
+  }
+  return '<div>View não encontrada</div>';
 }
 
 /** Retorna a lista de planilhas disponíveis */
