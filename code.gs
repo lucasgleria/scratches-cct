@@ -80,7 +80,8 @@ function validateHOUSE(house) {
 
 /** Serve a interface HTML */
 function doGet() {
-  return HtmlService.createHtmlFromFile('index')
+  return HtmlService.createTemplateFromFile('index')
+    .evaluate()
     .setTitle('Sistema de Gestão MAWB/HOUSE')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
