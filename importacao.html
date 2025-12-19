@@ -20,6 +20,10 @@
                 </div>
 
                 <div class="form-group">
+                    <button type="button" class="btn btn-secondary" onclick="openEditorMode()" style="width: 100%;">Modo Editor</button>
+                </div>
+
+                <div class="form-group">
                     <label for="mawb">MAWB:</label>
                     <input type="text" id="mawb" placeholder="Digite o MAWB (11 dígitos)" required maxlength="12">
                     <div id="mawbError" class="error-message"></div>
@@ -68,6 +72,7 @@
         </div>
     </div>
 
+    <?!= include('editor-modal.html'); ?>
     <?!= include('main.js'); ?>
 </body>
 </html>

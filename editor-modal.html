@@ -1,0 +1,17 @@
+<div id="editor-modal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>Selecionar HOUSE para Edição</h2>
+            <span class="close-button" onclick="closeEditorModal()">&times;</span>
+        </div>
+        <div class="modal-body">
+            <input type="text" id="house-search" onkeyup="filterHouses()" placeholder="Buscar HOUSE...">
+            <ul id="modal-house-list" class="house-list">
+                <!-- A lista de HOUSEs será preenchida dinamicamente -->
+            </ul>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeEditorModal()">Fechar</button>
+        </div>
+    </div>
+</div>

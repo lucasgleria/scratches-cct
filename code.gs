@@ -145,6 +145,71 @@ function onEdit(e) {
   }
 }
 
+/** Retorna uma lista única e ordenada de todos os HOUSEs de uma planilha. */
+function getHousesFromSpreadsheet(spreadsheetId) {
+  try {
+    if (!spreadsheetId) return _asError('Selecione uma planilha primeiro.');
+
+    const ss = SpreadsheetApp.openById(spreadsheetId);
+    const sheets = ss.getSheets();
+    if (sheets.length < 3) return _asError('A planilha selecionada não possui 3 abas.');
+    const ws = sheets[2]; // Terceira aba
+
+    const lastRow = ws.getLastRow();
+    if (lastRow < 2) return _asOk([]); // Nenhuma linha de dados
+
+    const houseColumn = ws.getRange(2, 2, lastRow - 1, 1).getValues();
+    const uniqueHouses = [...new Set(houseColumn.map(row => _normHouse(row[0])).filter(Boolean))];
+    uniqueHouses.sort();
+
+    return _asOk(uniqueHouses);
+  } catch (err) {
+    return _asError('Falha ao buscar HOUSEs da planilha.', err.message);
+  }
+}
+
+/** Retorna os dados da linha mais recente de um HOUSE específico. */
+function getDataForHouse(spreadsheetId, house) {
+  try {
+    if (!spreadsheetId) return _asError('Selecione uma planilha primeiro.');
+    if (!house) return _asError('Nenhum HOUSE especificado.');
+
+    const ss = SpreadsheetApp.openById(spreadsheetId);
+    const sheets = ss.getSheets();
+    if (sheets.length < 3) return _asError('A planilha selecionada não possui 3 abas.');
+    const ws = sheets[2];
+
+    const finder = ws.createTextFinder(_normHouse(house)).matchEntireCell(true).inColumn(2);
+    const occurrences = finder.findAll().reverse(); // Começa do mais recente
+
+    if (occurrences.length === 0) {
+      return _asError('HOUSE não encontrado na planilha.');
+    }
+
+    const latestRowIndex = occurrences[0].getRowIndex();
+    const rowData = ws.getRange(latestRowIndex, 1, 1, 9).getValues()[0];
+
+    const COLS = { MAWB: 0, HOUSE: 1, REF: 2, CONS: 3, ENT: 4, DTA: 5, PREV: 6, RESP: 7, OBS: 8 };
+
+    const data = {
+      mawb: _norm(rowData[COLS.MAWB]),
+      house: _norm(rowData[COLS.HOUSE]),
+      refs: _norm(rowData[COLS.REF]).split(MULTI_JOIN).filter(Boolean),
+      consignees: _norm(rowData[COLS.CONS]).split(MULTI_JOIN).filter(Boolean),
+      entregas: _norm(rowData[COLS.ENT]).split(MULTI_JOIN).filter(Boolean),
+      dtas: _norm(rowData[COLS.DTA]).split(MULTI_JOIN).filter(Boolean),
+      previsoes: _norm(rowData[COLS.PREV]).split(MULTI_JOIN).filter(Boolean),
+      responsaveis: _norm(rowData[COLS.RESP]).split(MULTI_JOIN).filter(Boolean),
+      observacoes: _norm(rowData[COLS.OBS]).split(MULTI_JOIN).filter(Boolean),
+    };
+
+    return _asOk(data);
+
+  } catch (err) {
+    return _asError('Falha ao buscar dados do HOUSE.', err.message);
+  }
+}
+
 
 /**
  * Calcula a formatação de cores para uma linha com base nos valores das colunas.

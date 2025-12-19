@@ -612,4 +612,95 @@
                 }
             }, 5000);
         }
+
+        // Funções do Modo Editor
+        function openEditorMode() {
+            const spreadsheetId = document.getElementById('spreadsheet').value;
+            if (!spreadsheetId) {
+                showAlert('Por favor, selecione uma planilha primeiro.', 'error');
+                return;
+            }
+            const modal = document.getElementById('editor-modal');
+            const houseList = document.getElementById('modal-house-list');
+            houseList.innerHTML = '<li>Carregando...</li>';
+            modal.style.display = 'block';
+
+            google.script.run
+                .withSuccessHandler(function(result) {
+                    if (result.ok) {
+                        houseList.innerHTML = '';
+                        if (result.payload.length === 0) {
+                            houseList.innerHTML = '<li>Nenhum HOUSE encontrado.</li>';
+                            return;
+                        }
+                        result.payload.forEach(house => {
+                            const li = document.createElement('li');
+                            li.textContent = house;
+                            li.className = 'house-list-item';
+                            li.onclick = () => selectHouseForEditing(house);
+                            houseList.appendChild(li);
+                        });
+                    } else {
+                        showAlert('Erro ao buscar HOUSEs: ' + result.message, 'error');
+                        houseList.innerHTML = '<li>Erro ao carregar.</li>';
+                    }
+                })
+                .withFailureHandler(function(error) {
+                    showAlert('Erro ao buscar HOUSEs: ' + error.message, 'error');
+                    houseList.innerHTML = '<li>Erro ao carregar.</li>';
+                })
+                .getHousesFromSpreadsheet(spreadsheetId);
+        }
+
+        function closeEditorModal() {
+            document.getElementById('editor-modal').style.display = 'none';
+        }
+
+        function filterHouses() {
+            const input = document.getElementById('house-search');
+            const filter = input.value.toUpperCase();
+            const ul = document.getElementById('modal-house-list');
+            const li = ul.getElementsByTagName('li');
+
+            for (let i = 0; i < li.length; i++) {
+                const txtValue = li[i].textContent || li[i].innerText;
+                if (txtValue.toUpperCase().indexOf(filter) > -1) {
+                    li[i].style.display = '';
+                } else {
+                    li[i].style.display = 'none';
+                }
+            }
+        }
+
+        function selectHouseForEditing(house) {
+            const spreadsheetId = document.getElementById('spreadsheet').value;
+            showAlert('Carregando dados para o HOUSE: ' + house, 'success');
+            closeEditorModal();
+
+            google.script.run
+                .withSuccessHandler(function(result) {
+                    if (result.ok) {
+                        const data = result.payload;
+
+                        // Limpa o formulário antes de preencher
+                        resetForm();
+
+                        document.getElementById('mawb').value = data.mawb;
+
+                        // Adiciona o HOUSE à lista e ao estado
+                        houses = [data.house];
+                        houseData[data.house] = data;
+                        updateHousesDisplay();
+                        selectHouse(data.house);
+
+                        showAlert('Dados carregados. Você pode agora editar e salvar as informações.', 'success');
+                    } else {
+                        showAlert('Erro ao carregar dados do HOUSE: ' + result.message, 'error');
+                    }
+                })
+                .withFailureHandler(function(error) {
+                    showAlert('Erro ao carregar dados do HOUSE: ' + error.message, 'error');
+                })
+                .getDataForHouse(spreadsheetId, house);
+        }
 </script>
