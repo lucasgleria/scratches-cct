@@ -171,42 +171,59 @@ function getHousesFromSpreadsheet(spreadsheetId) {
 /** Retorna os dados da linha mais recente de um HOUSE específico. */
 function getDataForHouse(spreadsheetId, house) {
   try {
-    if (!spreadsheetId) return _asError('Selecione uma planilha primeiro.');
-    if (!house) return _asError('Nenhum HOUSE especificado.');
+    if (!spreadsheetId) return _asError('ID da planilha não fornecido.');
+    if (!house) return _asError('Código HOUSE não fornecido.');
 
-    const ss = SpreadsheetApp.openById(spreadsheetId);
-    const sheets = ss.getSheets();
-    if (sheets.length < 3) return _asError('A planilha selecionada não possui 3 abas.');
-    const ws = sheets[2];
-
-    const finder = ws.createTextFinder(_normHouse(house)).matchEntireCell(true).inColumn(2);
-    const occurrences = finder.findAll().reverse(); // Começa do mais recente
-
-    if (occurrences.length === 0) {
-      return _asError('HOUSE não encontrado na planilha.');
+    let ss, ws;
+    try {
+      ss = SpreadsheetApp.openById(spreadsheetId);
+      const sheets = ss.getSheets();
+      if (sheets.length < 3) return _asError('A planilha selecionada não tem pelo menos 3 abas.');
+      ws = sheets[2];
+    } catch (e) {
+      return _asError('Falha ao abrir ou ler a planilha. Verifique as permissões e o ID.', e.message);
     }
 
-    const latestRowIndex = occurrences[0].getRowIndex();
-    const rowData = ws.getRange(latestRowIndex, 1, 1, 9).getValues()[0];
+    let latestRowIndex;
+    try {
+      const finder = ws.createTextFinder(_normHouse(house)).matchEntireCell(true).inColumn(2);
+      const occurrences = finder.findAll().reverse();
+      if (occurrences.length === 0) return _asError(`HOUSE "${house}" não encontrado na planilha.`);
+      latestRowIndex = occurrences[0].getRowIndex();
+    } catch (e) {
+      return _asError('Falha ao procurar pelo HOUSE na planilha.', e.message);
+    }
 
-    const COLS = { MAWB: 0, HOUSE: 1, REF: 2, CONS: 3, ENT: 4, DTA: 5, PREV: 6, RESP: 7, OBS: 8 };
+    let rowData;
+    try {
+      rowData = ws.getRange(latestRowIndex, 1, 1, 9).getValues()[0];
+    } catch (e) {
+      return _asError(`Falha ao ler os dados da linha ${latestRowIndex}.`, e.message);
+    }
 
-    const data = {
-      mawb: _norm(rowData[COLS.MAWB]),
-      house: _norm(rowData[COLS.HOUSE]),
-      refs: _norm(rowData[COLS.REF]).split(MULTI_JOIN).filter(Boolean),
-      consignees: _norm(rowData[COLS.CONS]).split(MULTI_JOIN).filter(Boolean),
-      entregas: _norm(rowData[COLS.ENT]).split(MULTI_JOIN).filter(Boolean),
-      dtas: _norm(rowData[COLS.DTA]).split(MULTI_JOIN).filter(Boolean),
-      previsoes: _norm(rowData[COLS.PREV]).split(MULTI_JOIN).filter(Boolean),
-      responsaveis: _norm(rowData[COLS.RESP]).split(MULTI_JOIN).filter(Boolean),
-      observacoes: _norm(rowData[COLS.OBS]).split(MULTI_JOIN).filter(Boolean),
-    };
+    try {
+      const COLS = { MAWB: 0, HOUSE: 1, REF: 2, CONS: 3, ENT: 4, DTA: 5, PREV: 6, RESP: 7, OBS: 8 };
 
-    return _asOk(data);
+      const data = {
+        mawb: _norm(rowData[COLS.MAWB]),
+        house: _norm(rowData[COLS.HOUSE]),
+        refs: _norm(rowData[COLS.REF]).split(MULTI_JOIN).filter(Boolean),
+        consignees: _norm(rowData[COLS.CONS]).split(MULTI_JOIN).filter(Boolean),
+        entregas: _norm(rowData[COLS.ENT]).split(MULTI_JOIN).filter(Boolean),
+        dtas: _norm(rowData[COLS.DTA]).split(MULTI_JOIN).filter(Boolean),
+        previsoes: _norm(rowData[COLS.PREV]).split(MULTI_JOIN).filter(Boolean),
+        responsaveis: _norm(rowData[COLS.RESP]).split(MULTI_JOIN).filter(Boolean),
+        observacoes: _norm(rowData[COLS.OBS]).split(MULTI_JOIN).filter(Boolean),
+      };
+
+      return _asOk(data);
+    } catch (e) {
+      return _asError('Falha ao processar os dados da linha. Verifique se os valores nas células são de texto.', e.message);
+    }
 
   } catch (err) {
-    return _asError('Falha ao buscar dados do HOUSE.', err.message);
+    // Fallback geral
+    return _asError('Ocorreu um erro inesperado em getDataForHouse.', err.message);
   }
 }
 
