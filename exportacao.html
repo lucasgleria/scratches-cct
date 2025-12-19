@@ -7,7 +7,25 @@
     <?!= include('style.css'); ?>
 </head>
 <body>
-    <div class="container">
+    <div class="container" data-view-name="exportacao">
+        <div class="main-content">
+            <div class="header">
+                <h1>Sistema de Gestão MAWB/HOUSE - Exportação</h1>
+                <p>Gerencie suas exportações de forma eficiente</p>
+            </div>
+
+            <div id="alerts"></div>
+
+            <div id="dataSection" class="form-section" style="display: none;">
+                <h2>Dados por HOUSE</h2>
+                <div id="housesData"></div>
+            </div>
+
+            <div id="loading" class="loading">
+                <div class="spinner"></div>
+                <p>Salvando dados...</p>
+            </div>
+        </div>
         <div class="sidebar">
             <div class="form-section">
                 <h2>Configuração</h2>
@@ -45,25 +63,6 @@
                 <button type="button" class="btn" onclick="saveData()" style="width: 100%; font-size: 18px; padding: 15px;">
                     Salvar Dados
                 </button>
-            </div>
-        </div>
-
-        <div class="main-content">
-            <div class="header">
-                <h1>Sistema de Gestão MAWB/HOUSE - Exportação</h1>
-                <p>Gerencie suas exportações de forma eficiente</p>
-            </div>
-
-            <div id="alerts"></div>
-
-            <div id="dataSection" class="form-section" style="display: none;">
-                <h2>Dados por HOUSE</h2>
-                <div id="housesData"></div>
-            </div>
-
-            <div id="loading" class="loading">
-                <div class="spinner"></div>
-                <p>Salvando dados...</p>
             </div>
         </div>
     </div>

@@ -91,10 +91,13 @@
 
         // Carrega lista de planilhas disponíveis
         function loadSpreadsheets() {
+            const viewName = document.querySelector('.container').dataset.viewName;
             google.script.run
                 .withSuccessHandler(function(result) {
                     if (result.ok) {
                         const select = document.getElementById('spreadsheet');
+                        // Limpa as opções existentes para evitar duplicatas ao trocar de view
+                        select.innerHTML = '<option value="">Selecione uma planilha...</option>';
                         result.payload.forEach(sheet => {
                             const option = document.createElement('option');
                             option.value = sheet.id;
@@ -108,7 +111,7 @@
                 .withFailureHandler(function(error) {
                     showAlert('Erro ao carregar planilhas: ' + error.message, 'error');
                 })
-                .getSpreadsheets();
+                .getSpreadsheets(viewName);
         }
 
 

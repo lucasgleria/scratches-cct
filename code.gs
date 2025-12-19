@@ -10,12 +10,17 @@
  *    * Se não há linhas vazias: adiciona separador + dados
  */
 
-/** Liste aqui as planilhas disponíveis para o usuário escolher. */
-const SPREADSHEETS = [
-  // Exemplo:
+/** Planilhas para Importação. */
+const IMPORT_SPREADSHEETS = [
   { id: '1Qrzq3NatjRtLE8CiQbMiWRHvwFgUKA5ymimoR6JAsV0', name: 'CCT Teste' },
   { id: '1qgP2RIXiA5cjO-EdSUjti11r6jBXVJR0PeMotHoBAA4', name: 'CCT Teste 2' }
-  // Adicione mais planilhas aqui conforme necessário
+];
+
+/** Planilhas para Exportação. */
+const EXPORT_SPREADSHEETS = [
+  // Adicione planilhas de exportação aqui
+  { id: 'EXPORT_ID_1', name: 'Planilha de Exportação 1' },
+  { id: 'EXPORT_ID_2', name: 'Planilha de Exportação 2' }
 ];
 
 /** Separador para múltiplos valores na mesma célula */
@@ -99,10 +104,15 @@ function include(filename) {
   return HtmlService.createHtmlOutputFromFile(filename).getContent();
 }
 
-/** Retorna a lista de planilhas disponíveis */
-function getSpreadsheets() {
+/** Retorna a lista de planilhas com base na view (importacao ou exportacao) */
+function getSpreadsheets(viewName) {
   try {
-    return _asOk(SPREADSHEETS);
+    if (viewName === 'importacao') {
+      return _asOk(IMPORT_SPREADSHEETS);
+    } else if (viewName === 'exportacao') {
+      return _asOk(EXPORT_SPREADSHEETS);
+    }
+    return _asError('View desconhecida: ' + viewName);
   } catch (err) {
     return _asError('Erro ao carregar planilhas', err.message);
   }
