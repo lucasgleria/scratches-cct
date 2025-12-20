@@ -145,6 +145,27 @@ function onEdit(e) {
   }
 }
 
+/** Verifica se um HOUSE específico já existe na planilha. */
+function checkHouseExists(spreadsheetId, house) {
+  try {
+    if (!spreadsheetId) return _asError('ID da planilha não fornecido.');
+    if (!house) return _asError('Código HOUSE não fornecido.');
+
+    const ss = SpreadsheetApp.openById(spreadsheetId);
+    const sheets = ss.getSheets();
+    if (sheets.length < 3) return _asError('A planilha selecionada não tem pelo menos 3 abas.');
+    const ws = sheets[2];
+
+    const columnToSearch = ws.getRange("B:B");
+    const finder = columnToSearch.createTextFinder(_normHouse(house)).matchEntireCell(true);
+    const occurrences = finder.findAll();
+
+    return _asOk(occurrences.length > 0);
+  } catch (err) {
+    return _asError('Falha ao verificar a existência do HOUSE.', err.message);
+  }
+}
+
 /** Retorna uma lista única e ordenada de todos os HOUSEs de uma planilha. */
 function getHousesFromSpreadsheet(spreadsheetId) {
   try {
