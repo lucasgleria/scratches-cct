@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Gestão MAWB/HOUSE</title>
+    <?!= include('style.css'); ?>
+</head>
+<body>
+    <div class="container" data-view-name="importacao">
+        <div class="sidebar">
+            <div class="form-section">
+                <h2>Configuração</h2>
+
+                <div class="form-group">
+                    <label for="spreadsheet">Selecionar Planilha:</label>
+                    <select id="spreadsheet" required>
+                        <option value="">Selecione uma planilha...</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <button type="button" class="btn btn-secondary" onclick="openEditorMode()" style="width: 100%;">Modo Editor</button>
+                </div>
+
+                <div class="form-group">
+                    <label for="mawb">MAWB:</label>
+                    <input type="text" id="mawb" placeholder="Digite o MAWB (11 dígitos)" required maxlength="12">
+                    <div id="mawbError" class="error-message"></div>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h2>HOUSES</h2>
+                <div class="form-group">
+                    <label for="newHouses">Adicionar um ou mais HOUSEs:</label>
+                    <textarea id="newHouses" placeholder="Cole uma lista de HOUSEs aqui, um por linha." rows="5" onpaste="handlePaste(event, 'house')"></textarea>
+                    <div id="houseError" class="error-message"></div>
+                    <button type="button" class="btn" onclick="addHouses()" style="margin-top: 10px;">Adicionar</button>
+                    <div id="housesList" class="houses-container">
+                        <div class="empty-state">
+                            <p>Nenhum HOUSE adicionado</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <button type="button" class="btn" onclick="saveData()" style="width: 100%; font-size: 18px; padding: 15px;">
+                    Salvar Dados
+                </button>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <div class="header">
+                <h1>Sistema de Gestão MAWB/HOUSE</h1>
+                <p>Gerencie suas entregas de forma eficiente</p>
+            </div>
+
+            <div id="alerts"></div>
+
+            <div id="dataSection" class="form-section" style="display: none;">
+                <h2>Dados por HOUSE</h2>
+                <div id="housesData"></div>
+            </div>
+
+            <div id="loading" class="loading">
+                <div class="spinner"></div>
+                <p>Salvando dados...</p>
+            </div>
+        </div>
+    </div>
+
+    <?!= include('editor-modal.html'); ?>
+    <?!= include('main.js'); ?>
+</body>
+</html>

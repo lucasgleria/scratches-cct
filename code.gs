@@ -10,12 +10,17 @@
  *    * Se não há linhas vazias: adiciona separador + dados
  */
 
-/** Liste aqui as planilhas disponíveis para o usuário escolher. */
-const SPREADSHEETS = [
-  // Exemplo:
+/** Planilhas para Importação. */
+const IMPORT_SPREADSHEETS = [
   { id: '1Qrzq3NatjRtLE8CiQbMiWRHvwFgUKA5ymimoR6JAsV0', name: 'CCT Teste' },
   { id: '1qgP2RIXiA5cjO-EdSUjti11r6jBXVJR0PeMotHoBAA4', name: 'CCT Teste 2' }
-  // Adicione mais planilhas aqui conforme necessário
+];
+
+/** Planilhas para Exportação. */
+const EXPORT_SPREADSHEETS = [
+  // Adicione planilhas de exportação aqui
+  { id: 'EXPORT_ID_1', name: 'Planilha de Exportação 1' },
+  { id: 'EXPORT_ID_2', name: 'Planilha de Exportação 2' }
 ];
 
 /** Separador para múltiplos valores na mesma célula */
@@ -86,15 +91,28 @@ function doGet() {
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
+/** Retorna o conteúdo HTML para uma view específica */
+function getHtmlForView(viewName) {
+  if (viewName === 'importacao' || viewName === 'exportacao') {
+    return HtmlService.createTemplateFromFile(viewName).evaluate().getContent();
+  }
+  return '<div>View não encontrada</div>';
+}
+
 /** Função para incluir arquivos CSS/JS externos se necessário */
 function include(filename) {
   return HtmlService.createHtmlOutputFromFile(filename).getContent();
 }
 
-/** Retorna a lista de planilhas disponíveis */
-function getSpreadsheets() {
+/** Retorna a lista de planilhas com base na view (importacao ou exportacao) */
+function getSpreadsheets(viewName) {
   try {
-    return _asOk(SPREADSHEETS);
+    if (viewName === 'importacao') {
+      return _asOk(IMPORT_SPREADSHEETS);
+    } else if (viewName === 'exportacao') {
+      return _asOk(EXPORT_SPREADSHEETS);
+    }
+    return _asError('View desconhecida: ' + viewName);
   } catch (err) {
     return _asError('Erro ao carregar planilhas', err.message);
   }
@@ -124,6 +142,90 @@ function onEdit(e) {
     const rowData = sheet.getRange(editedRow, 1, 1, 9).getValues()[0];
     const colors = getRowColors(rowData, spreadsheet.getName()); // Usa o nome do arquivo da planilha
     sheet.getRange(editedRow, 1, 1, colors.length).setBackgrounds([colors]);
+  }
+}
+
+/** Retorna uma lista única e ordenada de todos os HOUSEs de uma planilha. */
+function getHousesFromSpreadsheet(spreadsheetId) {
+  try {
+    if (!spreadsheetId) return _asError('Selecione uma planilha primeiro.');
+
+    const ss = SpreadsheetApp.openById(spreadsheetId);
+    const sheets = ss.getSheets();
+    if (sheets.length < 3) return _asError('A planilha selecionada não possui 3 abas.');
+    const ws = sheets[2]; // Terceira aba
+
+    const lastRow = ws.getLastRow();
+    if (lastRow < 2) return _asOk([]); // Nenhuma linha de dados
+
+    const houseColumn = ws.getRange(2, 2, lastRow - 1, 1).getValues();
+    const uniqueHouses = [...new Set(houseColumn.map(row => _normHouse(row[0])).filter(Boolean))];
+    uniqueHouses.sort();
+
+    return _asOk(uniqueHouses);
+  } catch (err) {
+    return _asError('Falha ao buscar HOUSEs da planilha.', err.message);
+  }
+}
+
+/** Retorna os dados da linha mais recente de um HOUSE específico. */
+function getDataForHouse(spreadsheetId, house) {
+  try {
+    if (!spreadsheetId) return _asError('ID da planilha não fornecido.');
+    if (!house) return _asError('Código HOUSE não fornecido.');
+
+    let ss, ws;
+    try {
+      ss = SpreadsheetApp.openById(spreadsheetId);
+      const sheets = ss.getSheets();
+      if (sheets.length < 3) return _asError('A planilha selecionada não tem pelo menos 3 abas.');
+      ws = sheets[2];
+    } catch (e) {
+      return _asError('Falha ao abrir ou ler a planilha.', `Erro: ${e.message}, Stack: ${e.stack}`);
+    }
+
+    let latestRowIndex;
+    try {
+      // Busca o HOUSE na coluna B (coluna 2)
+      const columnToSearch = ws.getRange("B:B");
+      const finder = columnToSearch.createTextFinder(_normHouse(house)).matchEntireCell(true);
+      const occurrences = finder.findAll().reverse(); // Inverte para pegar a última ocorrência (a mais recente)
+      if (occurrences.length === 0) return _asError(`HOUSE "${house}" não encontrado na planilha.`);
+      latestRowIndex = occurrences[0].getRow();
+    } catch (e) {
+      return _asError('Falha ao procurar pelo HOUSE na planilha.', `Erro: ${e.message}, Stack: ${e.stack}`);
+    }
+
+    let rowData;
+    try {
+      rowData = ws.getRange(latestRowIndex, 1, 1, 9).getValues()[0];
+    } catch (e) {
+      return _asError(`Falha ao ler os dados da linha ${latestRowIndex}.`, `Erro: ${e.message}, Stack: ${e.stack}`);
+    }
+
+    try {
+      const COLS = { MAWB: 0, HOUSE: 1, REF: 2, CONS: 3, ENT: 4, DTA: 5, PREV: 6, RESP: 7, OBS: 8 };
+
+      const data = {
+        mawb: _norm(rowData[COLS.MAWB]),
+        house: _norm(rowData[COLS.HOUSE]),
+        refs: _norm(rowData[COLS.REF]).split(MULTI_JOIN).filter(Boolean),
+        consignees: _norm(rowData[COLS.CONS]).split(MULTI_JOIN).filter(Boolean),
+        entregas: _norm(rowData[COLS.ENT]).split(MULTI_JOIN).filter(Boolean),
+        dtas: _norm(rowData[COLS.DTA]).split(MULTI_JOIN).filter(Boolean),
+        previsoes: _norm(rowData[COLS.PREV]).split(MULTI_JOIN).filter(Boolean),
+        responsaveis: _norm(rowData[COLS.RESP]).split(MULTI_JOIN).filter(Boolean),
+        observacoes: _norm(rowData[COLS.OBS]).split(MULTI_JOIN).filter(Boolean),
+      };
+
+      return _asOk(data);
+    } catch (e) {
+      return _asError('Falha ao processar os dados da linha.', `Erro: ${e.message}, Stack: ${e.stack}`);
+    }
+
+  } catch (err) {
+    // Fallback geral
+    return _asError('Ocorreu um erro inesperado em getDataForHouse.', `Erro: ${err.message}, Stack: ${err.stack}`);
   }
 }
 

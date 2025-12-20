@@ -1,0 +1,706 @@
+<script>
+        // Estado da aplicação
+        let houses = [];
+        let houseData = {};
+        let selectedHouse = null;
+
+        // Tipos de dados disponíveis
+        const dataTypes = [
+            { key: 'refs', label: 'Referências', placeholder: 'Digite uma referência' },
+            { key: 'consignees', label: 'Consignatários', placeholder: 'Digite um consignatário' },
+            { key: 'entregas', label: 'Entregas', placeholder: 'Digite uma entrega' },
+            { key: 'dtas', label: 'DTAs', placeholder: 'Digite uma DTA' },
+            { key: 'previsoes', label: 'Previsões', placeholder: 'Digite uma previsão' },
+            { key: 'responsaveis', label: 'Responsáveis', placeholder: 'Digite um responsável' },
+        ];
+
+        const specialDataTypes = [
+            { key: 'observacoes', label: 'Observações', placeholder: 'Digite uma observação' }
+        ];
+
+        // Funções de validação
+        function validateMAWB(mawb) {
+            let normalized = mawb.trim();
+
+            if (!normalized) {
+                return { valid: false, message: 'MAWB é obrigatório' };
+            }
+
+            // Remove o hífen para validação
+            normalized = normalized.replace(/-/g, '');
+
+            if (!/^\d+$/.test(normalized)) {
+                return { valid: false, message: 'MAWB deve conter apenas números' };
+            }
+
+            if (normalized.length !== 11) {
+                return { valid: false, message: 'MAWB deve ter exatamente 11 dígitos' };
+            }
+
+            return { valid: true };
+        }
+
+        function validateHOUSE(house) {
+            const normalized = house.trim();
+
+            if (!normalized) {
+                return { valid: false, message: 'HOUSE é obrigatório' };
+            }
+
+            // Length check is now handled by the stripping logic in addHouses
+            return { valid: true };
+        }
+
+        function showFieldError(fieldId, errorId, message) {
+            const field = document.getElementById(fieldId);
+            const errorDiv = document.getElementById(errorId);
+
+            field.classList.add('input-error');
+            field.classList.remove('input-valid');
+            errorDiv.innerHTML = message; // Use innerHTML to render <br> tags
+            errorDiv.style.display = 'block';
+        }
+
+        function clearFieldError(fieldId, errorId) {
+            const field = document.getElementById(fieldId);
+            const errorDiv = document.getElementById(errorId);
+
+            field.classList.remove('input-error');
+            field.classList.add('input-valid');
+            errorDiv.style.display = 'none';
+        }
+
+        // Inicialização
+        loadSpreadsheets();
+
+        // Validação em tempo real para MAWB
+        document.getElementById('mawb').addEventListener('input', function(e) {
+            const validation = validateMAWB(e.target.value);
+            if (!validation.valid && e.target.value.trim()) {
+                showFieldError('mawb', 'mawbError', validation.message);
+            } else if (validation.valid) {
+                clearFieldError('mawb', 'mawbError');
+            } else {
+                // Campo vazio - limpa erro mas não mostra válido
+                const field = document.getElementById('mawb');
+                const errorDiv = document.getElementById('mawbError');
+                field.classList.remove('input-error', 'input-valid');
+                errorDiv.style.display = 'none';
+            }
+        });
+
+        // Carrega lista de planilhas disponíveis
+        function loadSpreadsheets() {
+            const viewName = document.querySelector('.container').dataset.viewName;
+            google.script.run
+                .withSuccessHandler(function(result) {
+                    if (result.ok) {
+                        const select = document.getElementById('spreadsheet');
+                        // Limpa as opções existentes para evitar duplicatas ao trocar de view
+                        select.innerHTML = '<option value="">Selecione uma planilha...</option>';
+                        result.payload.forEach(sheet => {
+                            const option = document.createElement('option');
+                            option.value = sheet.id;
+                            option.textContent = sheet.name;
+                            select.appendChild(option);
+                        });
+                    } else {
+                        showAlert('Erro ao carregar planilhas: ' + result.message, 'error');
+                    }
+                })
+                .withFailureHandler(function(error) {
+                    showAlert('Erro ao carregar planilhas: ' + error.message, 'error');
+                })
+                .getSpreadsheets(viewName);
+        }
+
+
+        function clearHouses() {
+            houses = [];
+            houseData = {};
+            selectedHouse = null;
+            updateHousesDisplay();
+            updateDataSection();
+        }
+
+        function toggleFridge(house) {
+            const isChecked = document.getElementById(`fridgeToggle_${house}`).checked;
+            if (isChecked) {
+                houseData[house]['observacoes'] = ['FRI']; // Default value
+            } else {
+                const fridgeCodes = ["FRI", "FRO", "COL", "ERT", "CRT"];
+                const currentObs = houseData[house]?.observacoes?.[0] || '';
+                if (fridgeCodes.includes(currentObs)) {
+                    houseData[house]['observacoes'] = [];
+                }
+            }
+            updateDataSection();
+        }
+
+        function setFridgeType(house) {
+            const value = document.getElementById(`fridgeType_${house}`).value;
+            houseData[house]['observacoes'] = value ? [value] : [];
+            updateDataSection();
+        }
+
+        // Adiciona um novo HOUSE
+        function addHouse() {
+            const input = document.getElementById('newHouses');
+            addHouses();
+        }
+
+        function addHouses() {
+            const input = document.getElementById('newHouses');
+            const houseValues = input.value.trim().split('\n').filter(h => h.trim() !== '');
+            const errorDiv = document.getElementById('houseError');
+
+            let warnings = [];
+            let errors = [];
+            let housesToAdd = [];
+            const potentialHouses = new Set();
+
+            // Step 1: Process all inputs and collect errors, warnings, and valid houses
+            for (const originalValue of houseValues) {
+                let house = originalValue.trim().toUpperCase();
+
+                if (house.length > 11) {
+                    const originalForWarning = house;
+                    house = house.substring(house.length - 11);
+                    warnings.push(`Original: "${originalForWarning}", cortado para: "${house}"`);
+                }
+
+                const validation = validateHOUSE(house);
+                if (!validation.valid) {
+                    errors.push(`"${originalValue}" inválido: ${validation.message}`);
+                    continue;
+                }
+
+                if (houses.includes(house) || potentialHouses.has(house)) {
+                    errors.push(`"${originalValue}" resulta em um HOUSE duplicado: "${house}"`);
+                    continue;
+                }
+
+                potentialHouses.add(house);
+                housesToAdd.push(house);
+            }
+
+            // Step 2: Display errors OR warnings. Errors take precedence.
+            if (errors.length > 0) {
+                showFieldError('newHouses', 'houseError', errors.join('<br>'));
+                return; // Stop execution
+            }
+
+            if (warnings.length > 0) {
+                errorDiv.innerHTML = `<strong>Avisos:</strong><br>${warnings.join('<br>')}`;
+                errorDiv.style.color = '#666';
+                errorDiv.style.display = 'block';
+                input.classList.remove('input-error');
+                input.classList.add('input-valid');
+            } else {
+                // Only clear if there were no errors and no warnings
+                clearFieldError('newHouses', 'houseError');
+            }
+
+            // Step 3: If we are here, there were no errors. Add the houses and update UI.
+            if (housesToAdd.length > 0) {
+                housesToAdd.forEach(houseName => {
+                    houses.push(houseName);
+                    houseData[houseName] = {};
+                    dataTypes.forEach(type => houseData[houseName][type.key] = []);
+                    specialDataTypes.forEach(type => houseData[houseName][type.key] = []);
+                });
+
+                input.value = '';
+                updateHousesDisplay();
+                if (housesToAdd.length === 1) {
+                    selectHouse(houses[houses.length - 1]);
+                }
+            }
+        }
+
+
+        // Remove um HOUSE
+        function removeHouse(house) {
+            const index = houses.indexOf(house);
+            if (index > -1) {
+                houses.splice(index, 1);
+                delete houseData[house];
+                if (selectedHouse === house) {
+                    selectedHouse = null;
+                }
+                updateHousesDisplay();
+                updateDataSection();
+            }
+        }
+
+        function editHouseName(index) {
+            console.log("editHouseName called for index:", index);
+            const span = document.getElementById(`house-name-${index}`);
+            const currentName = span.textContent;
+            span.innerHTML = `<input type="text" id="edit-house-${index}" value="${currentName}"
+                                     onblur="saveHouseName(${index})"
+                                     onkeypress="handleHouseNameKey(event, ${index})">`;
+            document.getElementById(`edit-house-${index}`).focus();
+        }
+
+        function handleHouseNameKey(event, index) {
+            if (event.key === 'Enter') {
+                saveHouseName(index);
+            } else if (event.key === 'Escape') {
+                updateHousesDisplay(); // Revert changes
+            }
+        }
+
+        function saveHouseName(index) {
+            const input = document.getElementById(`edit-house-${index}`);
+            const newName = input.value.trim().toUpperCase();
+            const oldName = houses[index];
+
+            if (newName === oldName) {
+                updateHousesDisplay();
+                return;
+            }
+
+            const validation = validateHOUSE(newName);
+            if (!validation.valid) {
+                showAlert(`Nome de HOUSE inválido: ${validation.message}`, 'error');
+                updateHousesDisplay();
+                return;
+            }
+
+            if (houses.includes(newName)) {
+                showAlert(`HOUSE "${newName}" já existe.`, 'error');
+                updateHousesDisplay();
+                return;
+            }
+
+            // Update state
+            houses[index] = newName;
+            houseData[newName] = houseData[oldName];
+            delete houseData[oldName];
+            if (selectedHouse === oldName) {
+                selectedHouse = newName;
+            }
+
+            updateHousesDisplay();
+        }
+
+        // Seleciona um HOUSE para edição
+        function selectHouse(house) {
+            if (selectedHouse === house) return;
+
+            // Remove 'selected' class from previously selected item
+            if (selectedHouse) {
+                const oldItem = document.getElementById(`house-list-item-${selectedHouse}`);
+                if (oldItem) {
+                    oldItem.classList.remove('selected');
+                }
+            }
+
+            selectedHouse = house;
+
+            // Add 'selected' class to the newly selected item
+            const newItem = document.getElementById(`house-list-item-${house}`);
+            if (newItem) {
+                newItem.classList.add('selected');
+            }
+
+            updateDataSection();
+        }
+
+        // Atualiza a exibição da lista de HOUSES
+        function updateHousesDisplay() {
+            const container = document.getElementById('housesList');
+            if (houses.length === 0) {
+                container.innerHTML = `<div class="empty-state"><p>Nenhum HOUSE adicionado</p></div>`;
+                return;
+            }
+
+            let html = `
+                <ul class="house-list">
+                    ${houses.map((house, index) => `
+                        <li class="house-list-item ${selectedHouse === house ? 'selected' : ''}"
+                            id="house-list-item-${house}"
+                            onclick="selectHouse('${house}')"
+                            ondblclick="editHouseName(${index})">
+                            <span id="house-name-${index}">${house}</span>
+                            <button class="remove-house-btn" onclick="event.stopPropagation(); removeHouse('${house}');">×</button>
+                        </li>
+                    `).join('')}
+                </ul>
+            `;
+
+            if (houses.length > 0) {
+                html += `<button type="button" class="btn btn-secondary" style="margin-top: 10px;" onclick="clearHouses()">Limpar</button>`;
+            }
+
+            container.innerHTML = html;
+        }
+
+        function updateDataSection() {
+            const section = document.getElementById('dataSection');
+            const container = document.getElementById('housesData');
+
+            if (!selectedHouse) {
+                section.style.display = 'block';
+                container.innerHTML = `
+            <div class="empty-state">
+                <h2>Selecione um HOUSE</h2>
+                <p>Clique em um HOUSE na lista à esquerda para ver ou editar seus dados.</p>
+            </div>
+        `;
+                return;
+            }
+
+            const house = selectedHouse;
+            section.style.display = 'block';
+            container.innerHTML = `
+        <div class="house-item-header">
+            <h2 class="house-title">Dados para ${house}</h2>
+        </div>
+
+        <div class="toggles-section">
+            <div class="toggle-container">
+                <label class="switch">
+                    <input type="checkbox" id="fridgeToggle_${house}" onchange="toggleFridge('${house}')">
+                    <span class="slider"></span>
+                </label>
+                <label for="fridgeToggle_${house}">Carga de Geladeira</label>
+            </div>
+            <div id="fridgeOptions_${house}" style="display: none; margin-top: 10px;">
+                <label for="fridgeType_${house}">Tipo:</label>
+                <select id="fridgeType_${house}" onchange="setFridgeType('${house}')">
+                    <option value="">Selecione...</option>
+                    <option value="FRI">FRI</option>
+                    <option value="FRO">FRO</option>
+                    <option value="COL">COL</option>
+                    <option value="ERT">ERT</option>
+                    <option value="CRT">CRT</option>
+                </select>
+            </div>
+        </div>
+        <div class="data-grid">
+            ${dataTypes.map(type => renderDataField(type, house)).join('')}
+        </div>
+        <div class="special-data-section">
+            ${specialDataTypes.map(type => renderDataField(type, house)).join('')}
+        </div>
+    `;
+            syncToggles(house);
+        }
+
+        function renderDataField(type, house) {
+            const hasValue = houseData[house] && houseData[house][type.key] && houseData[house][type.key].length > 0;
+            const value = hasValue ? houseData[house][type.key][0] : '';
+            const inputId = `${type.key}_${house}`;
+
+            return `
+                <div class="data-section">
+                    <h3>${type.label}</h3>
+                    <div class="data-entry-wrapper" id="wrapper-${inputId}">
+                        ${hasValue ? `
+                            <div class="value-display" onclick="editDataEntry('${type.key}', '${house}')">
+                                <span>${value}</span>
+                                <button class="edit-value-btn">✏️</button>
+                            </div>
+                        ` : `
+                            <div class="data-entry">
+                                <input type="text" id="${inputId}" placeholder="${type.placeholder}" onkeypress="handleDataEntry(event, '${type.key}', '${house}')" onpaste="handlePaste(event, '${type.key}', '${house}')" onblur="addDataEntry('${type.key}', '${house}')">
+                            </div>
+                        `}
+                    </div>
+                </div>
+            `;
+        }
+
+        // Manipula entrada de dados com Enter
+        function handleDataEntry(event, dataType, house) {
+            if (event.key === 'Enter') {
+                addDataEntry(dataType, house);
+            }
+        }
+
+        function handlePaste(event, dataType, house) {
+            event.preventDefault();
+            const pastedText = (event.clipboardData || window.clipboardData).getData('text');
+            if (dataType === 'house') {
+                const input = document.getElementById('newHouses');
+                input.value += pastedText;
+                addHouses();
+            } else {
+                const input = document.getElementById(`${dataType}_${house}`);
+                input.value = pastedText;
+                addDataEntry(dataType, house);
+            }
+        }
+
+        function editDataEntry(dataType, house) {
+            const value = houseData[house][dataType][0];
+            const inputId = `${dataType}_${house}`;
+            const wrapper = document.getElementById(`wrapper-${inputId}`);
+
+            wrapper.innerHTML = `
+                <div class="data-entry">
+                    <input type="text" id="${inputId}" value="${value}" onblur="saveDataEntry('${dataType}', '${house}')" onkeypress="handleEditKey(event, '${dataType}', '${house}')">
+                </div>
+            `;
+            document.getElementById(inputId).focus();
+        }
+
+        function handleEditKey(event, dataType, house) {
+            if (event.key === 'Enter') {
+                saveDataEntry(dataType, house);
+            } else if (event.key === 'Escape') {
+                cancelEdit(dataType, house);
+            }
+        }
+
+        // Adiciona entrada de dados (apenas um valor por input)
+        function addDataEntry(dataType, house) {
+            const input = document.getElementById(`${dataType}_${house}`);
+            const value = input.value.trim();
+            if (value) {
+                houseData[house][dataType] = [value];
+                updateDataSection();
+            }
+        }
+
+        function saveDataEntry(dataType, house) {
+            const input = document.getElementById(`${dataType}_${house}`);
+            const value = input.value.trim();
+            if (value) {
+                houseData[house][dataType] = [value];
+            } else {
+                houseData[house][dataType] = [];
+            }
+            updateDataSection();
+        }
+
+        function cancelEdit(dataType, house) {
+            updateDataSection();
+        }
+
+        function syncToggles(house) {
+            const fridgeCodes = ["FRI", "FRO", "COL", "ERT", "CRT"];
+            const currentObs = houseData[house]?.observacoes?.[0] || '';
+            const isFridge = fridgeCodes.includes(currentObs);
+            document.getElementById(`fridgeToggle_${house}`).checked = isFridge;
+            document.getElementById(`fridgeOptions_${house}`).style.display = isFridge ? 'block' : 'none';
+            if (isFridge) {
+                document.getElementById(`fridgeType_${house}`).value = currentObs;
+            }
+        }
+
+
+        // Salva os dados
+        async function saveData() {
+            const spreadsheetId = document.getElementById('spreadsheet').value;
+            const mawb = document.getElementById('mawb').value.trim();
+
+            // Validações
+            if (!spreadsheetId) {
+                showAlert('Selecione uma planilha', 'error');
+                return;
+            }
+
+            // Validação do MAWB
+            const mawbValidation = validateMAWB(mawb);
+            if (!mawbValidation.valid) {
+                showFieldError('mawb', 'mawbError', mawbValidation.message);
+                showAlert('Corrija os erros antes de salvar', 'error');
+                return;
+            }
+
+            if (houses.length === 0) {
+                showAlert('Adicione pelo menos um HOUSE', 'error');
+                return;
+            }
+
+            // Prepara payload
+            const payload = {
+                spreadsheetId,
+                mawb,
+                houses,
+                refs: [],
+                consignees: [],
+                entregas: [],
+                dtas: [],
+                previsoes: [],
+                responsaveis: [],
+                observacoes: []
+            };
+
+            // Coleta todos os dados de forma explícita para evitar erros
+            houses.forEach(house => {
+                (houseData[house].refs || []).forEach(value => payload.refs.push({house, value}));
+                (houseData[house].consignees || []).forEach(value => payload.consignees.push({house, value}));
+                (houseData[house].entregas || []).forEach(value => payload.entregas.push({house, value}));
+                (houseData[house].dtas || []).forEach(value => payload.dtas.push({house, value}));
+                (houseData[house].previsoes || []).forEach(value => payload.previsoes.push({house, value}));
+                (houseData[house].responsaveis || []).forEach(value => payload.responsaveis.push({house, value}));
+                (houseData[house].observacoes || []).forEach(value => payload.observacoes.push({house, value}));
+            });
+
+            // Mostra loading
+            document.getElementById('loading').style.display = 'block';
+
+            try {
+                // Chama a função do Google Apps Script
+                const result = await google.script.run
+                    .withSuccessHandler(handleSaveSuccess)
+                    .withFailureHandler(handleSaveError)
+                    .saveEntries(payload);
+
+            } catch (error) {
+                handleSaveError(error);
+            }
+        }
+
+        // Manipula sucesso no salvamento
+        function handleSaveSuccess(result) {
+            document.getElementById('loading').style.display = 'none';
+
+            if (result.ok) {
+                const { inserted, updated, removed_duplicates } = result.payload;
+                showAlert(`Dados salvos com sucesso! Inseridos: ${inserted}, Atualizados: ${updated}, Duplicatas removidas: ${removed_duplicates}`, 'success');
+
+                // Limpa o formulário
+                resetForm();
+            } else {
+                showAlert(`Erro: ${result.message}${result.detail ? ' - ' + result.detail : ''}`, 'error');
+            }
+        }
+
+        // Manipula erro no salvamento
+        function handleSaveError(error) {
+            document.getElementById('loading').style.display = 'none';
+            showAlert(`Erro ao salvar: ${error.message || error}`, 'error');
+        }
+
+        // Reseta o formulário
+        function resetForm() {
+            document.getElementById('mawb').value = '';
+            houses = [];
+            houseData = {};
+            selectedHouse = null;
+            updateHousesDisplay();
+            updateDataSection();
+            document.getElementById('dataSection').style.display = 'none';
+        }
+
+        // Mostra alertas
+        function showAlert(message, type) {
+            const alertsContainer = document.getElementById('alerts');
+            const alertClass = type === 'success' ? 'alert-success' : 'alert-error';
+
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert ${alertClass}`;
+            alertDiv.innerHTML = `
+                ${message}
+                <button type="button" onclick="this.parentElement.remove()"
+                        style="float: right; background: none; border: none; font-size: 18px; cursor: pointer;">
+                    ×
+                </button>
+            `;
+
+            alertsContainer.appendChild(alertDiv);
+
+            // Remove automaticamente após 5 segundos
+            setTimeout(() => {
+                if (alertDiv.parentElement) {
+                    alertDiv.remove();
+                }
+            }, 5000);
+        }
+
+        // Funções do Modo Editor
+        function openEditorMode() {
+            const spreadsheetId = document.getElementById('spreadsheet').value;
+            if (!spreadsheetId) {
+                showAlert('Por favor, selecione uma planilha primeiro.', 'error');
+                return;
+            }
+            const modal = document.getElementById('editor-modal');
+            const houseList = document.getElementById('modal-house-list');
+            houseList.innerHTML = '<li>Carregando...</li>';
+            modal.style.display = 'block';
+
+            google.script.run
+                .withSuccessHandler(function(result) {
+                    if (result.ok) {
+                        houseList.innerHTML = '';
+                        if (result.payload.length === 0) {
+                            houseList.innerHTML = '<li>Nenhum HOUSE encontrado.</li>';
+                            return;
+                        }
+                        result.payload.forEach(house => {
+                            const li = document.createElement('li');
+                            li.textContent = house;
+                            li.className = 'house-list-item';
+                            li.onclick = () => selectHouseForEditing(house);
+                            houseList.appendChild(li);
+                        });
+                    } else {
+                        showAlert('Erro ao buscar HOUSEs: ' + result.message, 'error');
+                        houseList.innerHTML = '<li>Erro ao carregar.</li>';
+                    }
+                })
+                .withFailureHandler(function(error) {
+                    showAlert('Erro ao buscar HOUSEs: ' + error.message, 'error');
+                    houseList.innerHTML = '<li>Erro ao carregar.</li>';
+                })
+                .getHousesFromSpreadsheet(spreadsheetId);
+        }
+
+        function closeEditorModal() {
+            document.getElementById('editor-modal').style.display = 'none';
+        }
+
+        function filterHouses() {
+            const input = document.getElementById('house-search');
+            const filter = input.value.toUpperCase();
+            const ul = document.getElementById('modal-house-list');
+            const li = ul.getElementsByTagName('li');
+
+            for (let i = 0; i < li.length; i++) {
+                const txtValue = li[i].textContent || li[i].innerText;
+                if (txtValue.toUpperCase().indexOf(filter) > -1) {
+                    li[i].style.display = '';
+                } else {
+                    li[i].style.display = 'none';
+                }
+            }
+        }
+
+        function selectHouseForEditing(house) {
+            const spreadsheetId = document.getElementById('spreadsheet').value;
+            showAlert('Carregando dados para o HOUSE: ' + house, 'success');
+            closeEditorModal();
+
+            google.script.run
+                .withSuccessHandler(function(result) {
+                    if (result.ok) {
+                        const data = result.payload;
+
+                        // Limpa o formulário antes de preencher
+                        resetForm();
+
+                        document.getElementById('mawb').value = data.mawb;
+
+                        // Adiciona o HOUSE à lista e ao estado
+                        houses = [data.house];
+                        houseData[data.house] = data;
+                        updateHousesDisplay();
+                        selectHouse(data.house);
+
+                        showAlert('Dados carregados. Você pode agora editar e salvar as informações.', 'success');
+                    } else {
+                        showAlert(`Erro ao carregar dados do HOUSE: ${result.message} - Detalhes: ${result.detail}`, 'error');
+                    }
+                })
+                .withFailureHandler(function(error) {
+                    showAlert(`Erro fatal ao carregar dados do HOUSE: ${error.message}`, 'error');
+                })
+                .getDataForHouse(spreadsheetId, house);
+        }
+</script>
