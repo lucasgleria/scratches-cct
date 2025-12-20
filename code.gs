@@ -264,6 +264,8 @@ function getRowColors(rowData, sheetName) {
     REGULAR_BLUE: '#9fc5e8',
     GREEN: '#d9ead3',
     ORANGE: '#f6b26b',
+    PINK: '#f4cccc',
+    LIGHT_RED: '#ea9999',
     NO_COLOR: null
   };
   const FRIDGE_CODES = ["FRI", "FRO", "COL", "ERT", "CRT"];
@@ -273,6 +275,7 @@ function getRowColors(rowData, sheetName) {
   const entregaValue = _norm(rowData[COLS.ENT]).toUpperCase();
   const dtaValue = _norm(rowData[COLS.DTA]).toUpperCase();
   const obsValue = _norm(rowData[COLS.OBS]).toUpperCase();
+  const obsParts = obsValue.split(MULTI_JOIN).map(s => s.trim());
 
   // Regra 1: Exportação (prioridade máxima)
   if (entregaValue === 'EXPORTAÇÃO') {
@@ -284,16 +287,28 @@ function getRowColors(rowData, sheetName) {
     for (let i = COLS.MAWB; i <= COLS.RESP; i++) {
       colors[i] = COLORS.GREEN;
     }
-    // Regra específica para a planilha "CCT Teste"
-    if (sheetName === 'CCT Teste' && dtaValue === 'SSA') {
+  }
+
+  // Regra específica para DTA SSA ou VCP
+  if (dtaValue === 'SSA' || dtaValue === 'VCP') {
       colors[COLS.DTA] = COLORS.ORANGE;
+  }
+
+  // Regra 3: Carga de Geladeira (pinta a linha toda)
+  if (obsParts.some(p => FRIDGE_CODES.includes(p))) {
+    for (let i = COLS.MAWB; i <= COLS.OBS; i++) {
+      colors[i] = COLORS.REGULAR_BLUE;
     }
   }
 
-  // Regra 3: Carga de Geladeira
-  if (FRIDGE_CODES.includes(obsValue)) {
-    colors[COLS.RESP] = COLORS.REGULAR_BLUE;
-    colors[COLS.OBS] = COLORS.REGULAR_BLUE;
+  // Regra 4: Serviços e Carta Protesto
+  if (obsParts.includes('SERVICOS') || obsParts.includes('CARTA PROTESTO')) {
+      colors[COLS.OBS] = COLORS.PINK;
+  }
+
+  // Regra 5: Ajustes
+  if (obsParts.includes('AJUSTES')) {
+      colors[COLS.OBS] = COLORS.LIGHT_RED;
   }
 
   return colors;
@@ -362,23 +377,28 @@ function saveEntries(payload) {
     // ----------------- Helpers -----------------
     const COLS = { MAWB:1, HOUSE:2, REF:3, CONS:4, ENT:5, DTA:6, PREV:7, RESP:8, OBS:9 };
 
-    const collectByHouse = (arr, house) => {
+    const collectByHouse = (arr, house, allowDuplicates = false) => {
       const values = arr
         .filter(x => _normHouse(x && x.house) === house)
         .map(x => _norm(x && x.value))
         .filter(Boolean);
-      return Array.from(new Set(values));
+      return allowDuplicates ? values : Array.from(new Set(values));
     };
 
     const joinVals = (vals) => (vals.length ? vals.join(MULTI_JOIN) : '');
 
-    const mergeCell = (oldVal, newVal, isEdit) => {
+    const mergeCell = (oldVal, newVal, isEdit, allowDuplicates = false) => {
       const a = _norm(oldVal);
       const b = _norm(newVal);
       if (isEdit) return b;
       if (!a && !b) return '';
       if (!a) return b;
       if (!b) return a;
+
+      if (allowDuplicates) {
+        return `${a}${MULTI_JOIN}${b}`;
+      }
+
       const parts = a.split(MULTI_JOIN).map(_norm);
       return parts.includes(b) ? a : `${a}${MULTI_JOIN}${b}`;
     };
@@ -416,7 +436,8 @@ function saveEntries(payload) {
       } else {
         const keeper = index.get(key);
         for (let c = COLS.REF; c <= COLS.OBS; c++) {
-          keeper.row[c - 1] = mergeCell(keeper.row[c - 1], row[c - 1], isEditMode);
+          const allowDuplicates = (c === COLS.REF);
+          keeper.row[c - 1] = mergeCell(keeper.row[c - 1], row[c - 1], isEditMode, allowDuplicates);
         }
         duplicatesToDelete.push(absRow);
       }
@@ -432,14 +453,24 @@ function saveEntries(payload) {
       });
     });
 
-    const appendToMap = (map, arr, field) => {
+    const appendToMap = (map, arr, field, allowDuplicates = false) => {
       arr.forEach(({ house, value }) => {
         const h = _normHouse(house);
-        if (map.has(h)) map.get(h)[field].push(_norm(value));
+        if (map.has(h)) {
+          const data = map.get(h);
+          if (allowDuplicates) {
+            data[field].push(_norm(value));
+          } else {
+            // Evita duplicatas se não for permitido
+            if (!data[field].includes(_norm(value))) {
+              data[field].push(_norm(value));
+            }
+          }
+        }
       });
     };
 
-    appendToMap(houseDataMap, refs, 'refs');
+    appendToMap(houseDataMap, refs, 'refs', true);
     appendToMap(houseDataMap, consignees, 'consignees');
     appendToMap(houseDataMap, entregas, 'entregas');
     appendToMap(houseDataMap, dtas, 'dtas');
@@ -462,7 +493,8 @@ function saveEntries(payload) {
         const kept = index.get(key);
         const updated = kept.row.slice();
         for (let c = COLS.REF; c <= COLS.OBS; c++) {
-          updated[c - 1] = mergeCell(updated[c - 1], r[c - 1], isEditMode);
+          const allowDuplicates = (c === COLS.REF);
+          updated[c - 1] = mergeCell(updated[c - 1], r[c - 1], isEditMode, allowDuplicates);
         }
         pendingUpdates.push({ rowIndex: kept.rowIndex, row: updated });
         index.set(key, { rowIndex: kept.rowIndex, row: updated });
@@ -470,6 +502,18 @@ function saveEntries(payload) {
         toInsert.push(r);
       }
     });
+
+    const finalHouseCount = index.size + toInsert.length;
+    const COLORS = { YELLOW: '#ffff00' };
+
+    // Regra de colorir MAWB se houver mais de 1 HOUSE
+    if (finalHouseCount > 1) {
+      pendingUpdates.forEach(update => {
+        const range = ws.getRange(update.rowIndex, 1, 1, 1);
+        range.setBackground(COLORS.YELLOW);
+      });
+      // A cor para novas inserções será tratada abaixo
+    }
 
     pendingUpdates.forEach(update => {
       const range = ws.getRange(update.rowIndex, 1, 1, 9);
@@ -494,7 +538,16 @@ function saveEntries(payload) {
       const range = ws.getRange(insertRow, 1, toInsert.length, 9);
       range.setNumberFormat('@');
       range.setValues(toInsert);
-      range.setBackgrounds(toInsert.map(row => getRowColors(row, ss.getName())));
+
+      const backgroundColors = toInsert.map(row => {
+        const rowColors = getRowColors(row, ss.getName());
+        // Aplica a regra do MAWB amarelo para novas inserções
+        if (finalHouseCount > 1) {
+          rowColors[0] = COLORS.YELLOW;
+        }
+        return rowColors;
+      });
+      range.setBackgrounds(backgroundColors);
     }
 
     return _asOk({
