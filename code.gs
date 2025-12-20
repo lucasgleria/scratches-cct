@@ -462,7 +462,7 @@ function saveEntries(payload) {
         const kept = index.get(key);
         const updated = kept.row.slice();
         for (let c = COLS.REF; c <= COLS.OBS; c++) {
-          updated[c - 1] = mergeCell(updated[c - 1], r[c - 1]);
+          updated[c - 1] = mergeCell(updated[c - 1], r[c - 1], isEditMode);
         }
         pendingUpdates.push({ rowIndex: kept.rowIndex, row: updated });
         index.set(key, { rowIndex: kept.rowIndex, row: updated });
