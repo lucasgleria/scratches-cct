@@ -181,7 +181,7 @@ function getDataForHouse(spreadsheetId, house) {
       if (sheets.length < 3) return _asError('A planilha selecionada não tem pelo menos 3 abas.');
       ws = sheets[2];
     } catch (e) {
-      return _asError('Falha ao abrir ou ler a planilha. Verifique as permissões e o ID.', e.message);
+      return _asError('Falha ao abrir ou ler a planilha.', `Erro: ${e.message}, Stack: ${e.stack}`);
     }
 
     let latestRowIndex;
@@ -191,14 +191,14 @@ function getDataForHouse(spreadsheetId, house) {
       if (occurrences.length === 0) return _asError(`HOUSE "${house}" não encontrado na planilha.`);
       latestRowIndex = occurrences[0].getRowIndex();
     } catch (e) {
-      return _asError('Falha ao procurar pelo HOUSE na planilha.', e.message);
+      return _asError('Falha ao procurar pelo HOUSE na planilha.', `Erro: ${e.message}, Stack: ${e.stack}`);
     }
 
     let rowData;
     try {
       rowData = ws.getRange(latestRowIndex, 1, 1, 9).getValues()[0];
     } catch (e) {
-      return _asError(`Falha ao ler os dados da linha ${latestRowIndex}.`, e.message);
+      return _asError(`Falha ao ler os dados da linha ${latestRowIndex}.`, `Erro: ${e.message}, Stack: ${e.stack}`);
     }
 
     try {
@@ -218,12 +218,12 @@ function getDataForHouse(spreadsheetId, house) {
 
       return _asOk(data);
     } catch (e) {
-      return _asError('Falha ao processar os dados da linha. Verifique se os valores nas células são de texto.', e.message);
+      return _asError('Falha ao processar os dados da linha.', `Erro: ${e.message}, Stack: ${e.stack}`);
     }
 
   } catch (err) {
     // Fallback geral
-    return _asError('Ocorreu um erro inesperado em getDataForHouse.', err.message);
+    return _asError('Ocorreu um erro inesperado em getDataForHouse.', `Erro: ${err.message}, Stack: ${err.stack}`);
   }
 }
 

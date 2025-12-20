@@ -695,11 +695,11 @@
 
                         showAlert('Dados carregados. Você pode agora editar e salvar as informações.', 'success');
                     } else {
-                        showAlert('Erro ao carregar dados do HOUSE: ' + result.message, 'error');
+                        showAlert(`Erro ao carregar dados do HOUSE: ${result.message} - Detalhes: ${result.detail}`, 'error');
                     }
                 })
                 .withFailureHandler(function(error) {
-                    showAlert('Erro ao carregar dados do HOUSE: ' + error.message, 'error');
+                    showAlert(`Erro fatal ao carregar dados do HOUSE: ${error.message}`, 'error');
                 })
                 .getDataForHouse(spreadsheetId, house);
         }
