@@ -322,8 +322,9 @@ function saveEntries(payload) {
 
     const {
       spreadsheetId,
-      mawb: rawMawb, // Renomeia para indicar que pode ter o hífen
+      mawb: rawMawb,
       houses,
+      isEditMode = false,
       refs = [],
       consignees = [],
       entregas = [],
@@ -371,9 +372,10 @@ function saveEntries(payload) {
 
     const joinVals = (vals) => (vals.length ? vals.join(MULTI_JOIN) : '');
 
-    const mergeCell = (oldVal, newVal) => {
+    const mergeCell = (oldVal, newVal, isEdit) => {
       const a = _norm(oldVal);
       const b = _norm(newVal);
+      if (isEdit) return b;
       if (!a && !b) return '';
       if (!a) return b;
       if (!b) return a;
@@ -414,7 +416,7 @@ function saveEntries(payload) {
       } else {
         const keeper = index.get(key);
         for (let c = COLS.REF; c <= COLS.OBS; c++) {
-          keeper.row[c - 1] = mergeCell(keeper.row[c - 1], row[c - 1]);
+          keeper.row[c - 1] = mergeCell(keeper.row[c - 1], row[c - 1], isEditMode);
         }
         duplicatesToDelete.push(absRow);
       }

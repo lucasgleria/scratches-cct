@@ -3,6 +3,7 @@
         let houses = [];
         let houseData = {};
         let selectedHouse = null;
+        let isEditMode = false;
 
         // Tipos de dados disponíveis
         const dataTypes = [
@@ -119,6 +120,7 @@
             houses = [];
             houseData = {};
             selectedHouse = null;
+            isEditMode = false; // Garante que o modo de edição seja desativado
             updateHousesDisplay();
             updateDataSection();
         }
@@ -548,6 +550,7 @@
                 spreadsheetId,
                 mawb,
                 houses,
+                isEditMode,
                 refs: [],
                 consignees: [],
                 entregas: [],
@@ -610,6 +613,7 @@
             houses = [];
             houseData = {};
             selectedHouse = null;
+            isEditMode = false; // Reseta o modo de edição
             updateHousesDisplay();
             updateDataSection();
             document.getElementById('dataSection').style.display = 'none';
@@ -715,6 +719,7 @@
                         document.getElementById('mawb').value = data.mawb;
 
                         // Adiciona o HOUSE à lista e ao estado
+                        isEditMode = true; // Ativa o modo de edição
                         houses = [data.house];
                         houseData[data.house] = data;
                         updateHousesDisplay();
