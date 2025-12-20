@@ -186,10 +186,12 @@ function getDataForHouse(spreadsheetId, house) {
 
     let latestRowIndex;
     try {
-      const finder = ws.createTextFinder(_normHouse(house)).matchEntireCell(true).inColumn(2);
-      const occurrences = finder.findAll().reverse();
+      // Busca o HOUSE na coluna B (coluna 2)
+      const columnToSearch = ws.getRange("B:B");
+      const finder = columnToSearch.createTextFinder(_normHouse(house)).matchEntireCell(true);
+      const occurrences = finder.findAll().reverse(); // Inverte para pegar a última ocorrência (a mais recente)
       if (occurrences.length === 0) return _asError(`HOUSE "${house}" não encontrado na planilha.`);
-      latestRowIndex = occurrences[0].getRowIndex();
+      latestRowIndex = occurrences[0].getRow();
     } catch (e) {
       return _asError('Falha ao procurar pelo HOUSE na planilha.', `Erro: ${e.message}, Stack: ${e.stack}`);
     }
