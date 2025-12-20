@@ -3,6 +3,7 @@
         let houses = [];
         let houseData = {};
         let selectedHouse = null;
+        let isEditMode = false;
 
         // Tipos de dados disponíveis
         const dataTypes = [
@@ -119,6 +120,7 @@
             houses = [];
             houseData = {};
             selectedHouse = null;
+            isEditMode = false; // Garante que o modo de edição seja desativado
             updateHousesDisplay();
             updateDataSection();
         }
@@ -149,17 +151,24 @@
             addHouses();
         }
 
-        function addHouses() {
+        async function addHouses() {
             const input = document.getElementById('newHouses');
             const houseValues = input.value.trim().split('\n').filter(h => h.trim() !== '');
             const errorDiv = document.getElementById('houseError');
+            const spreadsheetId = document.getElementById('spreadsheet').value;
+
+            if (!spreadsheetId) {
+                showAlert('Por favor, selecione uma planilha primeiro.', 'error');
+                return;
+            }
+
+            document.getElementById('loading').style.display = 'block';
 
             let warnings = [];
             let errors = [];
             let housesToAdd = [];
             const potentialHouses = new Set();
 
-            // Step 1: Process all inputs and collect errors, warnings, and valid houses
             for (const originalValue of houseValues) {
                 let house = originalValue.trim().toUpperCase();
 
@@ -176,41 +185,55 @@
                 }
 
                 if (houses.includes(house) || potentialHouses.has(house)) {
-                    errors.push(`"${originalValue}" resulta em um HOUSE duplicado: "${house}"`);
+                    errors.push(`"${originalValue}" resulta em um HOUSE duplicado na lista de adição.`);
                     continue;
                 }
 
-                potentialHouses.add(house);
-                housesToAdd.push(house);
+                try {
+                    const result = await new Promise((resolve, reject) => {
+                        google.script.run
+                            .withSuccessHandler(resolve)
+                            .withFailureHandler(reject)
+                            .checkHouseExists(spreadsheetId, house);
+                    });
+
+                    if (result.ok && result.payload) {
+                        confirmEdit(house);
+                    } else if (result.ok && !result.payload) {
+                        potentialHouses.add(house);
+                        housesToAdd.push(house);
+                    } else {
+                        errors.push(result.message || 'Erro desconhecido ao verificar HOUSE.');
+                    }
+                } catch (error) {
+                    errors.push(`Falha na comunicação ao verificar HOUSE "${house}".`);
+                }
             }
 
-            // Step 2: Display errors OR warnings. Errors take precedence.
+            document.getElementById('loading').style.display = 'none';
+            input.value = '';
+
             if (errors.length > 0) {
                 showFieldError('newHouses', 'houseError', errors.join('<br>'));
-                return; // Stop execution
-            }
-
-            if (warnings.length > 0) {
+            } else if (warnings.length > 0) {
                 errorDiv.innerHTML = `<strong>Avisos:</strong><br>${warnings.join('<br>')}`;
                 errorDiv.style.color = '#666';
                 errorDiv.style.display = 'block';
                 input.classList.remove('input-error');
                 input.classList.add('input-valid');
             } else {
-                // Only clear if there were no errors and no warnings
                 clearFieldError('newHouses', 'houseError');
             }
 
-            // Step 3: If we are here, there were no errors. Add the houses and update UI.
             if (housesToAdd.length > 0) {
                 housesToAdd.forEach(houseName => {
-                    houses.push(houseName);
-                    houseData[houseName] = {};
-                    dataTypes.forEach(type => houseData[houseName][type.key] = []);
-                    specialDataTypes.forEach(type => houseData[houseName][type.key] = []);
+                    if (!houses.includes(houseName)) {
+                        houses.push(houseName);
+                        houseData[houseName] = {};
+                        dataTypes.forEach(type => houseData[houseName][type.key] = []);
+                        specialDataTypes.forEach(type => houseData[houseName][type.key] = []);
+                    }
                 });
-
-                input.value = '';
                 updateHousesDisplay();
                 if (housesToAdd.length === 1) {
                     selectHouse(houses[houses.length - 1]);
@@ -218,6 +241,12 @@
             }
         }
 
+        function confirmEdit(house) {
+            const message = `O HOUSE "${house}" já existe na planilha. Deseja carregar os dados existentes para edição?`;
+            if (confirm(message)) {
+                selectHouseForEditing(house);
+            }
+        }
 
         // Remove um HOUSE
         function removeHouse(house) {
@@ -521,6 +550,7 @@
                 spreadsheetId,
                 mawb,
                 houses,
+                isEditMode,
                 refs: [],
                 consignees: [],
                 entregas: [],
@@ -583,6 +613,7 @@
             houses = [];
             houseData = {};
             selectedHouse = null;
+            isEditMode = false; // Reseta o modo de edição
             updateHousesDisplay();
             updateDataSection();
             document.getElementById('dataSection').style.display = 'none';
@@ -688,6 +719,7 @@
                         document.getElementById('mawb').value = data.mawb;
 
                         // Adiciona o HOUSE à lista e ao estado
+                        isEditMode = true; // Ativa o modo de edição
                         houses = [data.house];
                         houseData[data.house] = data;
                         updateHousesDisplay();
