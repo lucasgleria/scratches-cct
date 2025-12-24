@@ -1,0 +1,157 @@
+<script>
+// Atualiza a exibição da lista de HOUSES
+function updateHousesDisplay() {
+    const container = document.getElementById('housesList');
+    if (houses.length === 0) {
+        container.innerHTML = `<div class="empty-state"><p>Nenhum HOUSE adicionado</p></div>`;
+        return;
+    }
+
+    let html = `
+<ul class="house-list">
+    ${houses.map(house => `
+        <li class="house-list-item ${selectedHouse === house.id ? 'selected' : ''}"
+            id="house-list-item-${house.id}"
+            onclick="selectHouse(${house.id})"
+            ondblclick="editHouseName(${house.id})">
+            <span id="house-name-${house.id}">${house.name}</span>
+            <button class="remove-house-btn" onclick="event.stopPropagation(); removeHouse(${house.id});">×</button>
+        </li>
+    `).join('')}
+</ul>
+`;
+
+    if (houses.length > 0) {
+        html += `<button type="button" class="btn btn-secondary" style="margin-top: 10px;" onclick="clearHouses()">Limpar</button>`;
+    }
+
+    container.innerHTML = html;
+}
+
+function updateDataSection() {
+    const section = document.getElementById('dataSection');
+    const container = document.getElementById('housesData');
+
+    if (selectedHouse === null) {
+        section.style.display = 'block';
+        container.innerHTML = `
+    <div class="empty-state">
+        <h2>Selecione um HOUSE</h2>
+        <p>Clique em um HOUSE na lista à esquerda para ver ou editar seus dados.</p>
+    </div>
+`;
+        return;
+    }
+    const house = houses.find(h => h.id === selectedHouse);
+    if (!house) {
+        selectedHouse = null;
+        updateDataSection(); // Re-render with empty state
+        return;
+    }
+    const houseId = house.id;
+    const houseName = house.name;
+
+    section.style.display = 'block';
+    container.innerHTML = `
+<div class="house-item-header">
+    <h2 class="house-title">Dados para ${houseName}</h2>
+</div>
+
+<div class="toggles-section">
+    <div class="toggle-container">
+        <label class="switch">
+            <input type="checkbox" id="fridgeToggle_${houseId}" onchange="toggleFridge(${houseId})">
+            <span class="slider"></span>
+        </label>
+        <label for="fridgeToggle_${houseId}">Carga de Geladeira</label>
+    </div>
+    <div id="fridgeOptions_${houseId}" style="display: none; margin-top: 10px;">
+        <label for="fridgeType_${houseId}">Tipo:</label>
+        <select id="fridgeType_${houseId}" onchange="setFridgeType(${houseId})">
+            <option value="">Selecione...</option>
+            <option value="FRI">FRI</option>
+            <option value="FRO">FRO</option>
+            <option value="COL">COL</option>
+            <option value="ERT">ERT</option>
+            <option value="CRT">CRT</option>
+        </select>
+    </div>
+</div>
+<div class="data-grid">
+    ${dataTypes.map(type => renderDataField(type, houseId)).join('')}
+</div>
+<div class="special-data-section">
+    ${specialDataTypes.map(type => renderDataField(type, houseId)).join('')}
+</div>
+`;
+    syncToggles(houseId);
+}
+
+function renderDataField(type, houseId) {
+    const hasValue = houseData[houseId] && houseData[houseId][type.key] && houseData[houseId][type.key].length > 0;
+    const value = hasValue ? houseData[houseId][type.key][0] : '';
+    const inputId = `${type.key}_${houseId}`;
+    const isDisabled = isServicosMode && type.key !== 'responsaveis';
+
+    // Combobox para Entregas
+    if (type.key === 'entregas') {
+        const options = ["TRANSPALLET", "WEST", "PASTA", "?"];
+        return `
+        <div class="data-section">
+            <h3>${type.label}</h3>
+            <div class="data-entry-wrapper" id="wrapper-${inputId}">
+                <div class="data-entry">
+                    <select id="${inputId}" onchange="addDataEntry('${type.key}', ${houseId})" ${isDisabled ? 'disabled' : ''}>
+                        <option value="">Selecione...</option>
+                        ${options.map(opt => `<option value="${opt}" ${value === opt ? 'selected' : ''}>${opt}</option>`).join('')}
+                    </select>
+                </div>
+            </div>
+        </div>
+    `;
+    }
+
+    return `
+        <div class="data-section">
+            <h3>${type.label}</h3>
+            <div class="data-entry-wrapper" id="wrapper-${inputId}">
+                ${hasValue ? `
+                    <div class="value-display" onclick="${!isDisabled ? `editDataEntry('${type.key}', ${houseId})` : ''}">
+                        <span>${value}</span>
+                        ${!isDisabled ? `<button class="edit-value-btn">✏️</button>` : ''}
+                    </div>
+                ` : `
+                    <div class="data-entry">
+                        <input type="text" id="${inputId}" placeholder="${type.placeholder}" onkeypress="handleDataEntry(event, '${type.key}', ${houseId})" onpaste="handlePaste(event, '${type.key}', ${houseId})" onblur="addDataEntry('${type.key}', ${houseId})" ${isDisabled ? 'disabled' : ''}>
+                    </div>
+                `}
+            </div>
+        </div>
+    `;
+}
+
+// Mostra alertas
+function showAlert(message, type) {
+    const alertsContainer = document.getElementById('alerts');
+    const alertClass = type === 'success' ? 'alert-success' : 'alert-error';
+
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert ${alertClass}`;
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" onclick="this.parentElement.remove()"
+                style="float: right; background: none; border: none; font-size: 18px; cursor: pointer;">
+            ×
+        </button>
+    `;
+
+    alertsContainer.appendChild(alertDiv);
+
+    // Remove automaticamente após 5 segundos
+    setTimeout(() => {
+        if (alertDiv.parentElement) {
+            alertDiv.remove();
+        }
+    }, 5000);
+}
+</script>

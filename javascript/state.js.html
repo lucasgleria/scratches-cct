@@ -1,0 +1,23 @@
+<script>
+// Estado da aplicação
+let houses = []; // Array of objects: { id, name }
+let houseData = {}; // Keyed by house.id
+let selectedHouse = null; // Stores the selected house's id
+let houseIdCounter = 0; // To generate unique IDs for houses
+let isEditMode = false;
+let isServicosMode = false;
+
+// Tipos de dados disponíveis
+const dataTypes = [
+    { key: 'refs', label: 'Referências', placeholder: 'Digite uma referência' },
+    { key: 'consignees', label: 'Consignatários', placeholder: 'Digite um consignatário' },
+    { key: 'entregas', label: 'Entregas', placeholder: 'Digite uma entrega' },
+    { key: 'dtas', label: 'DTAs', placeholder: 'Digite uma DTA' },
+    { key: 'previsoes', label: 'Previsões', placeholder: 'Digite uma previsão' },
+    { key: 'responsaveis', label: 'Responsáveis', placeholder: 'Digite um responsável' },
+];
+
+const specialDataTypes = [
+    { key: 'observacoes', label: 'Observações', placeholder: 'Digite uma observação' }
+];
+</script>
