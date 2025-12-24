@@ -127,21 +127,51 @@
 
         function toggleFridge(house) {
             const isChecked = document.getElementById(`fridgeToggle_${house}`).checked;
+            const fridgeCodes = ["FRI", "FRO", "COL", "ERT", "CRT"];
+            let obs = houseData[house]?.observacoes || [];
+
+            // Remove all existing fridge codes to avoid duplicates or conflicts
+            obs = obs.filter(o => !fridgeCodes.includes(o));
+
             if (isChecked) {
-                houseData[house]['observacoes'] = ['FRI']; // Default value
-            } else {
-                const fridgeCodes = ["FRI", "FRO", "COL", "ERT", "CRT"];
-                const currentObs = houseData[house]?.observacoes?.[0] || '';
-                if (fridgeCodes.includes(currentObs)) {
-                    houseData[house]['observacoes'] = [];
-                }
+                obs.push('FRI'); // Add default fridge code
             }
+
+            houseData[house].observacoes = obs;
             updateDataSection();
         }
 
         function setFridgeType(house) {
             const value = document.getElementById(`fridgeType_${house}`).value;
-            houseData[house]['observacoes'] = value ? [value] : [];
+            const fridgeCodes = ["FRI", "FRO", "COL", "ERT", "CRT"];
+            let obs = houseData[house]?.observacoes || [];
+
+            // Remove all existing fridge codes
+            obs = obs.filter(o => !fridgeCodes.includes(o));
+
+            if (value) {
+                obs.push(value); // Add the selected fridge code
+            }
+
+            houseData[house].observacoes = obs;
+            updateDataSection();
+        }
+
+        function toggleSimpleObservation(house, value, toggleId) {
+            const isChecked = document.getElementById(toggleId).checked;
+            let obs = houseData[house]?.observacoes || [];
+            const index = obs.indexOf(value);
+
+            if (isChecked) {
+                if (index === -1) {
+                    obs.push(value);
+                }
+            } else {
+                if (index > -1) {
+                    obs.splice(index, 1);
+                }
+            }
+            houseData[house].observacoes = obs;
             updateDataSection();
         }
 
@@ -407,6 +437,29 @@
                     <option value="CRT">CRT</option>
                 </select>
             </div>
+             <div class="toggle-container">
+                <label class="switch">
+                    <input type="checkbox" id="servicosToggle_${house}" onchange="toggleSimpleObservation('${house}', 'SERVICOS', this.id)">
+                    <span class="slider"></span>
+                </label>
+                <label for="servicosToggle_${house}">Serviços</label>
+            </div>
+
+            <div class="toggle-container">
+                <label class="switch">
+                    <input type="checkbox" id="protestoToggle_${house}" onchange="toggleSimpleObservation('${house}', 'CARTA PROTESTO', this.id)">
+                    <span class="slider"></span>
+                </label>
+                <label for="protestoToggle_${house}">Carta Protesto</label>
+            </div>
+
+            <div class="toggle-container">
+                <label class="switch">
+                    <input type="checkbox" id="ajustesToggle_${house}" onchange="toggleSimpleObservation('${house}', 'AJUSTES', this.id)">
+                    <span class="slider"></span>
+                </label>
+                <label for="ajustesToggle_${house}">Ajustes</label>
+            </div>
         </div>
         <div class="data-grid">
             ${dataTypes.map(type => renderDataField(type, house)).join('')}
@@ -422,6 +475,24 @@
             const hasValue = houseData[house] && houseData[house][type.key] && houseData[house][type.key].length > 0;
             const value = hasValue ? houseData[house][type.key][0] : '';
             const inputId = `${type.key}_${house}`;
+
+            // Combobox para Entregas
+            if (type.key === 'entregas') {
+                const options = ["TRANSPALLET", "WEST", "PASTA", "?"];
+                return `
+                <div class="data-section">
+                    <h3>${type.label}</h3>
+                    <div class="data-entry-wrapper" id="wrapper-${inputId}">
+                        <div class="data-entry">
+                            <select id="${inputId}" onchange="addDataEntry('${type.key}', '${house}')">
+                                <option value="">Selecione...</option>
+                                ${options.map(opt => `<option value="${opt}" ${value === opt ? 'selected' : ''}>${opt}</option>`).join('')}
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            `;
+            }
 
             return `
                 <div class="data-section">
@@ -510,14 +581,22 @@
         }
 
         function syncToggles(house) {
+            const obs = houseData[house]?.observacoes || [];
             const fridgeCodes = ["FRI", "FRO", "COL", "ERT", "CRT"];
-            const currentObs = houseData[house]?.observacoes?.[0] || '';
-            const isFridge = fridgeCodes.includes(currentObs);
+
+            // Sincroniza Carga de Geladeira
+            const fridgeObs = obs.find(o => fridgeCodes.includes(o));
+            const isFridge = !!fridgeObs;
             document.getElementById(`fridgeToggle_${house}`).checked = isFridge;
             document.getElementById(`fridgeOptions_${house}`).style.display = isFridge ? 'block' : 'none';
             if (isFridge) {
-                document.getElementById(`fridgeType_${house}`).value = currentObs;
+                document.getElementById(`fridgeType_${house}`).value = fridgeObs;
             }
+
+            // Sincroniza outros toggles
+            document.getElementById(`servicosToggle_${house}`).checked = obs.includes('SERVICOS');
+            document.getElementById(`protestoToggle_${house}`).checked = obs.includes('CARTA PROTESTO');
+            document.getElementById(`ajustesToggle_${house}`).checked = obs.includes('AJUSTES');
         }
 
 

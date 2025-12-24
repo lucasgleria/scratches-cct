@@ -301,6 +301,52 @@ function getRowColors(rowData, sheetName) {
 
 
 /**
+ * Aplica a formatação de cores para um bloco de MAWB, incluindo a regra de MAWB amarelo.
+ * @param {Sheet} sheet A aba da planilha.
+ * @param {String} mawb O MAWB a ser colorido.
+ */
+function _updateMawbBlockColoring(sheet, mawb) {
+  const mawbNorm = _norm(mawb);
+  if (!mawbNorm) return;
+
+  const textFinder = sheet.createTextFinder(mawbNorm).matchEntireCell(true);
+  const occurrences = textFinder.findAll();
+  if (occurrences.length === 0) return;
+
+  const firstRow = occurrences[0].getRowIndex();
+  const lastRow = occurrences[occurrences.length - 1].getRowIndex();
+  const blockRange = sheet.getRange(firstRow, 1, lastRow - firstRow + 1, 9);
+  const blockValues = blockRange.getValues();
+
+  // Conta quantos HOUSEs únicos existem neste bloco de MAWB
+  const uniqueHouses = new Set();
+  blockValues.forEach(row => {
+    const house = _normHouse(row[1]); // Coluna B (índice 1) é o HOUSE
+    if (house) {
+      uniqueHouses.add(house);
+    }
+  });
+  const isMultiHouse = uniqueHouses.size > 1;
+
+  const sheetName = sheet.getParent().getName();
+  const newBackgrounds = [];
+
+  for (let i = 0; i < blockValues.length; i++) {
+    const rowData = blockValues[i];
+    const rowColors = getRowColors(rowData, sheetName);
+
+    // Se houver múltiplos houses, pinta a célula do MAWB de amarelo
+    if (isMultiHouse) {
+      rowColors[0] = '#fff2cc'; // Amarelo para a coluna MAWB (índice 0)
+    }
+    newBackgrounds.push(rowColors);
+  }
+
+  blockRange.setBackgrounds(newBackgrounds);
+}
+
+
+/**
  * saveEntries(payload)
  * payload:
  * {
@@ -475,7 +521,6 @@ function saveEntries(payload) {
       const range = ws.getRange(update.rowIndex, 1, 1, 9);
       range.setNumberFormat('@');
       range.setValues([update.row]);
-      range.setBackgrounds([getRowColors(update.row, ss.getName())]);
     });
 
     if (duplicatesToDelete.length) {
@@ -494,8 +539,8 @@ function saveEntries(payload) {
       const range = ws.getRange(insertRow, 1, toInsert.length, 9);
       range.setNumberFormat('@');
       range.setValues(toInsert);
-      range.setBackgrounds(toInsert.map(row => getRowColors(row, ss.getName())));
     }
+    _updateMawbBlockColoring(ws, mawbNorm);
 
     return _asOk({
       inserted: toInsert.length,
