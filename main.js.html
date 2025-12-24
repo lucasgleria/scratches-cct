@@ -4,6 +4,8 @@
         let houseData = {};
         let selectedHouse = null;
         let isEditMode = false;
+        let isServicosMode = false;
+        let servicosCounter = 1;
 
         // Tipos de dados disponíveis
         const dataTypes = [
@@ -437,29 +439,6 @@
                     <option value="CRT">CRT</option>
                 </select>
             </div>
-             <div class="toggle-container">
-                <label class="switch">
-                    <input type="checkbox" id="servicosToggle_${house}" onchange="toggleSimpleObservation('${house}', 'SERVICOS', this.id)">
-                    <span class="slider"></span>
-                </label>
-                <label for="servicosToggle_${house}">Serviços</label>
-            </div>
-
-            <div class="toggle-container">
-                <label class="switch">
-                    <input type="checkbox" id="protestoToggle_${house}" onchange="toggleSimpleObservation('${house}', 'CARTA PROTESTO', this.id)">
-                    <span class="slider"></span>
-                </label>
-                <label for="protestoToggle_${house}">Carta Protesto</label>
-            </div>
-
-            <div class="toggle-container">
-                <label class="switch">
-                    <input type="checkbox" id="ajustesToggle_${house}" onchange="toggleSimpleObservation('${house}', 'AJUSTES', this.id)">
-                    <span class="slider"></span>
-                </label>
-                <label for="ajustesToggle_${house}">Ajustes</label>
-            </div>
         </div>
         <div class="data-grid">
             ${dataTypes.map(type => renderDataField(type, house)).join('')}
@@ -475,6 +454,7 @@
             const hasValue = houseData[house] && houseData[house][type.key] && houseData[house][type.key].length > 0;
             const value = hasValue ? houseData[house][type.key][0] : '';
             const inputId = `${type.key}_${house}`;
+            const isDisabled = isServicosMode && type.key !== 'responsaveis';
 
             // Combobox para Entregas
             if (type.key === 'entregas') {
@@ -484,7 +464,7 @@
                     <h3>${type.label}</h3>
                     <div class="data-entry-wrapper" id="wrapper-${inputId}">
                         <div class="data-entry">
-                            <select id="${inputId}" onchange="addDataEntry('${type.key}', '${house}')">
+                            <select id="${inputId}" onchange="addDataEntry('${type.key}', '${house}')" ${isDisabled ? 'disabled' : ''}>
                                 <option value="">Selecione...</option>
                                 ${options.map(opt => `<option value="${opt}" ${value === opt ? 'selected' : ''}>${opt}</option>`).join('')}
                             </select>
@@ -499,13 +479,13 @@
                     <h3>${type.label}</h3>
                     <div class="data-entry-wrapper" id="wrapper-${inputId}">
                         ${hasValue ? `
-                            <div class="value-display" onclick="editDataEntry('${type.key}', '${house}')">
+                            <div class="value-display" onclick="${!isDisabled ? `editDataEntry('${type.key}', '${house}')` : ''}">
                                 <span>${value}</span>
-                                <button class="edit-value-btn">✏️</button>
+                                ${!isDisabled ? `<button class="edit-value-btn">✏️</button>` : ''}
                             </div>
                         ` : `
                             <div class="data-entry">
-                                <input type="text" id="${inputId}" placeholder="${type.placeholder}" onkeypress="handleDataEntry(event, '${type.key}', '${house}')" onpaste="handlePaste(event, '${type.key}', '${house}')" onblur="addDataEntry('${type.key}', '${house}')">
+                                <input type="text" id="${inputId}" placeholder="${type.placeholder}" onkeypress="handleDataEntry(event, '${type.key}', '${house}')" onpaste="handlePaste(event, '${type.key}', '${house}')" onblur="addDataEntry('${type.key}', '${house}')" ${isDisabled ? 'disabled' : ''}>
                             </div>
                         `}
                     </div>
@@ -630,6 +610,7 @@
                 mawb,
                 houses,
                 isEditMode,
+                isServicosMode,
                 refs: [],
                 consignees: [],
                 entregas: [],
@@ -692,7 +673,8 @@
             houses = [];
             houseData = {};
             selectedHouse = null;
-            isEditMode = false; // Reseta o modo de edição
+            isEditMode = false;
+            isServicosMode = false;
             updateHousesDisplay();
             updateDataSection();
             document.getElementById('dataSection').style.display = 'none';
@@ -805,6 +787,114 @@
                         selectHouse(data.house);
 
                         showAlert('Dados carregados. Você pode agora editar e salvar as informações.', 'success');
+                    } else {
+                        showAlert(`Erro ao carregar dados do HOUSE: ${result.message} - Detalhes: ${result.detail}`, 'error');
+                    }
+                })
+                .withFailureHandler(function(error) {
+                    showAlert(`Erro fatal ao carregar dados do HOUSE: ${error.message}`, 'error');
+                })
+                .getDataForHouse(spreadsheetId, house);
+        }
+
+        // Funções do Modal de Serviços
+        document.getElementById('servicosToggle').addEventListener('change', function(event) {
+            if (event.target.checked) {
+                openServicosModal();
+            } else {
+                // Aqui você pode adicionar lógica para reverter o estado, se necessário
+            }
+        });
+
+        function openServicosModal() {
+            const spreadsheetId = document.getElementById('spreadsheet').value;
+            if (!spreadsheetId) {
+                showAlert('Por favor, selecione uma planilha primeiro.', 'error');
+                document.getElementById('servicosToggle').checked = false;
+                return;
+            }
+            const modal = document.getElementById('servicos-modal');
+            const houseList = document.getElementById('servicos-modal-house-list');
+            houseList.innerHTML = '<li>Carregando...</li>';
+            modal.style.display = 'block';
+
+            google.script.run
+                .withSuccessHandler(function(result) {
+                    if (result.ok) {
+                        houseList.innerHTML = '';
+                        if (result.payload.length === 0) {
+                            houseList.innerHTML = '<li>Nenhum HOUSE encontrado.</li>';
+                            return;
+                        }
+                        result.payload.forEach(house => {
+                            const li = document.createElement('li');
+                            li.textContent = house;
+                            li.className = 'house-list-item';
+                            li.onclick = () => selectHouseForServicos(house);
+                            houseList.appendChild(li);
+                        });
+                    } else {
+                        showAlert('Erro ao buscar HOUSEs: ' + result.message, 'error');
+                        houseList.innerHTML = '<li>Erro ao carregar.</li>';
+                    }
+                })
+                .withFailureHandler(function(error) {
+                    showAlert('Erro ao buscar HOUSEs: ' + error.message, 'error');
+                    houseList.innerHTML = '<li>Erro ao carregar.</li>';
+                })
+                .getAllHouses();
+        }
+
+        function closeServicosModal() {
+            document.getElementById('servicos-modal').style.display = 'none';
+            document.getElementById('servicosToggle').checked = false;
+        }
+
+        function filterServicosHouses() {
+            const input = document.getElementById('servicos-house-search');
+            const filter = input.value.toUpperCase();
+            const ul = document.getElementById('servicos-modal-house-list');
+            const li = ul.getElementsByTagName('li');
+
+            for (let i = 0; i < li.length; i++) {
+                const txtValue = li[i].textContent || li[i].innerText;
+                if (txtValue.toUpperCase().indexOf(filter) > -1) {
+                    li[i].style.display = '';
+                } else {
+                    li[i].style.display = 'none';
+                }
+            }
+        }
+
+        function selectHouseForServicos(house) {
+            const spreadsheetId = document.getElementById('spreadsheet').value;
+            showAlert('Carregando dados para o HOUSE: ' + house, 'success');
+            closeServicosModal();
+
+            google.script.run
+                .withSuccessHandler(function(result) {
+                    if (result.ok) {
+                        const data = result.payload;
+
+                        if (!isServicosMode) {
+                            // First time selecting a HOUSE in Serviços mode
+                            resetForm();
+                            document.getElementById('mawb').value = data.mawb;
+                            isServicosMode = true;
+                        }
+
+                        // Create a unique name for the new entry
+                        const uniqueHouseName = `${data.house}-${servicosCounter++}`;
+                        houses.push(uniqueHouseName);
+                        houseData[uniqueHouseName] = JSON.parse(JSON.stringify(data)); // Deep copy
+
+                        // Clear the 'responsaveis' field for the new entry
+                        houseData[uniqueHouseName].responsaveis = [];
+                        
+                        updateHousesDisplay();
+                        selectHouse(uniqueHouseName);
+
+                        showAlert('Dados carregados. Adicione um novo responsável e salve.', 'success');
                     } else {
                         showAlert(`Erro ao carregar dados do HOUSE: ${result.message} - Detalhes: ${result.detail}`, 'error');
                     }
