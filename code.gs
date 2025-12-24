@@ -545,7 +545,7 @@ function saveEntries(payload) {
 
     calculatedRows.forEach(r => {
       const key = keyFor(r[COLS.HOUSE - 1]);
-      if (index.has(key)) {
+      if (index.has(key) && !isServicosMode) {
         const kept = index.get(key);
         const updated = kept.row.slice();
         for (let c = COLS.REF; c <= COLS.OBS; c++) {
@@ -587,7 +587,7 @@ function saveEntries(payload) {
         range.setValues(toInsert);
 
         if (isServicosMode) {
-            range.setBackground('#fff2cc'); // Light yellow
+            range.setBackground('#f8d7da'); // Light red
         }
     }
     _updateMawbBlockColoring(ws, mawbNorm);
