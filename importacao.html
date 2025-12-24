@@ -58,7 +58,38 @@
                 <p>Gerencie suas entregas de forma eficiente</p>
             </div>
 
+            <div class="visualization-panel">
+                <h2>Visualização</h2>
+                <div class="toggle-group">
+                    <div class="toggle-container">
+                        <label class="switch">
+                            <input type="checkbox" id="servicosToggle" onchange="handleServicosToggle(this.checked)">
+                            <span class="slider"></span>
+                        </label>
+                        <label for="servicosToggle">Serviços</label>
+                    </div>
+                    <div class="toggle-container">
+                        <label class="switch">
+                            <input type="checkbox" id="cartaProtestoToggle" disabled>
+                            <span class="slider"></span>
+                        </label>
+                        <label for="cartaProtestoToggle">Carta Protesto</label>
+                    </div>
+                    <div class="toggle-container">
+                        <label class="switch">
+                            <input type="checkbox" id="ajustesToggle" disabled>
+                            <span class="slider"></span>
+                        </label>
+                        <label for="ajustesToggle">Ajustes</label>
+                    </div>
+                </div>
+            </div>
+
             <div id="alerts"></div>
+
+            <div id="servicosDataSection" class="form-section" style="display: none;">
+                <!-- Conteúdo para a funcionalidade de Serviços -->
+            </div>
 
             <div id="dataSection" class="form-section" style="display: none;">
                 <h2>Dados por HOUSE</h2>
@@ -73,6 +104,7 @@
     </div>
 
     <?!= include('editor-modal.html'); ?>
+    <?!= include('servicos-modal.html'); ?>
     <?!= include('main.js'); ?>
 </body>
 </html>

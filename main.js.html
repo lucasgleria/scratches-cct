@@ -735,4 +735,140 @@
                 })
                 .getDataForHouse(spreadsheetId, house);
         }
+
+        // Funções para a feature "Serviços"
+        function handleServicosToggle(isChecked) {
+            if (isChecked) {
+                openServicosModal();
+            } else {
+                document.getElementById('servicosDataSection').style.display = 'none';
+            }
+        }
+
+        function openServicosModal() {
+            const spreadsheetId = document.getElementById('spreadsheet').value;
+            if (!spreadsheetId) {
+                showAlert('Por favor, selecione uma planilha primeiro.', 'error');
+                document.getElementById('servicosToggle').checked = false;
+                return;
+            }
+            const modal = document.getElementById('servicos-modal');
+            const houseList = document.getElementById('servicos-modal-house-list');
+            houseList.innerHTML = '<li>Carregando...</li>';
+            modal.style.display = 'block';
+
+            google.script.run
+                .withSuccessHandler(function(result) {
+                    if (result.ok) {
+                        houseList.innerHTML = '';
+                        if (result.payload.length === 0) {
+                            houseList.innerHTML = '<li>Nenhum HOUSE encontrado.</li>';
+                            return;
+                        }
+                        result.payload.forEach(house => {
+                            const li = document.createElement('li');
+                            li.textContent = house;
+                            li.className = 'house-list-item';
+                            li.onclick = () => selectHouseForServicos(house);
+                            houseList.appendChild(li);
+                        });
+                    } else {
+                        showAlert('Erro ao buscar HOUSEs: ' + result.message, 'error');
+                        houseList.innerHTML = '<li>Erro ao carregar.</li>';
+                    }
+                })
+                .withFailureHandler(function(error) {
+                    showAlert('Erro ao buscar HOUSEs: ' + error.message, 'error');
+                    houseList.innerHTML = '<li>Erro ao carregar.</li>';
+                })
+                .getHousesFromAllSheets(spreadsheetId);
+        }
+
+        function closeServicosModal() {
+            document.getElementById('servicos-modal').style.display = 'none';
+        }
+
+        function filterServicosHouses() {
+            const input = document.getElementById('servicos-house-search');
+            const filter = input.value.toUpperCase();
+            const ul = document.getElementById('servicos-modal-house-list');
+            const li = ul.getElementsByTagName('li');
+
+            for (let i = 0; i < li.length; i++) {
+                const txtValue = li[i].textContent || li[i].innerText;
+                if (txtValue.toUpperCase().indexOf(filter) > -1) {
+                    li[i].style.display = '';
+                } else {
+                    li[i].style.display = 'none';
+                }
+            }
+        }
+
+        function selectHouseForServicos(house) {
+            const spreadsheetId = document.getElementById('spreadsheet').value;
+            showAlert('Carregando dados para o HOUSE: ' + house, 'info');
+            closeServicosModal();
+
+            google.script.run
+                .withSuccessHandler(function(result) {
+                    if (result.ok) {
+                        const data = result.payload;
+                        const container = document.getElementById('servicosDataSection');
+                        container.style.display = 'block';
+                        container.innerHTML = `
+                            <h2>Dados do HOUSE: ${house} (Apenas Visualização)</h2>
+                            <div class="data-grid readonly">
+                                ${Object.entries(data).map(([key, value]) => `
+                                    <div class="data-section">
+                                        <h3>${key}</h3>
+                                        <p>${Array.isArray(value) ? value.join(', ') : value}</p>
+                                    </div>
+                                `).join('')}
+                            </div>
+                            <div class="form-section">
+                                <h3>Adicionar Novo Responsável</h3>
+                                <div class="form-group">
+                                    <label for="novoResponsavel">Responsável:</label>
+                                    <input type="text" id="novoResponsavel" placeholder="Digite o nome do responsável">
+                                </div>
+                                <button type="button" class="btn" onclick="duplicateHouseData('${house}')">Duplicar e Salvar</button>
+                            </div>
+                        `;
+                    } else {
+                        showAlert(`Erro ao carregar dados do HOUSE: ${result.message}`, 'error');
+                    }
+                })
+                .withFailureHandler(function(error) {
+                    showAlert(`Erro fatal ao carregar dados do HOUSE: ${error.message}`, 'error');
+                })
+                .getDataForHouse(spreadsheetId, house);
+        }
+
+        function duplicateHouseData(house) {
+            const spreadsheetId = document.getElementById('spreadsheet').value;
+            const novoResponsavel = document.getElementById('novoResponsavel').value.trim();
+
+            if (!novoResponsavel) {
+                showAlert('Por favor, insira o nome do responsável.', 'error');
+                return;
+            }
+
+            showAlert('Duplicando e salvando dados...', 'info');
+
+            // PLACEHOLDER: Call the backend function here
+             google.script.run
+                 .withSuccessHandler(function(result) {
+                     if (result.ok) {
+                         showAlert('Dados duplicados e salvos com sucesso!', 'success');
+                         document.getElementById('servicosDataSection').style.display = 'none';
+                         document.getElementById('servicosToggle').checked = false;
+                     } else {
+                         showAlert(`Erro ao duplicar dados: ${result.message}`, 'error');
+                     }
+                 })
+                 .withFailureHandler(function(error) {
+                     showAlert(`Erro fatal ao duplicar dados: ${error.message}`, 'error');
+                 })
+                 .duplicateAndAnnotateHouse(spreadsheetId, house, novoResponsavel);
+        }
 </script>
