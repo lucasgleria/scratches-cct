@@ -513,17 +513,20 @@ function saveEntries(payload) {
 
     const houseDataMap = new Map();
     housesClean.forEach(h => {
-      houseDataMap.set(h, {
-        mawb: mawbNorm, house: h, refs: [], consignees: [], entregas: [],
-        dtas: [], previsoes: [], responsaveis: [], observacoes: []
-      });
+        const cleanHouse = isServicosMode ? h.replace(/-\d+$/, '') : h;
+        houseDataMap.set(h, {
+            mawb: mawbNorm, house: cleanHouse, refs: [], consignees: [], entregas: [],
+            dtas: [], previsoes: [], responsaveis: [], observacoes: []
+        });
     });
 
     const appendToMap = (map, arr, field) => {
-      arr.forEach(({ house, value }) => {
-        const h = _normHouse(house);
-        if (map.has(h)) map.get(h)[field].push(_norm(value));
-      });
+        arr.forEach(({ house, value }) => {
+            const h = _normHouse(house);
+            if (map.has(h)) {
+                map.get(h)[field].push(_norm(value));
+            }
+        });
     };
 
     appendToMap(houseDataMap, refs, 'refs');

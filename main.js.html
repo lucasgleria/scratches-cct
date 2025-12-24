@@ -5,6 +5,7 @@
         let selectedHouse = null;
         let isEditMode = false;
         let isServicosMode = false;
+        let servicosCounter = 1;
 
         // Tipos de dados disponíveis
         const dataTypes = [
@@ -875,21 +876,23 @@
                     if (result.ok) {
                         const data = result.payload;
 
-                        // Limpa o formulário antes de preencher
-                        resetForm();
+                        if (!isServicosMode) {
+                            // First time selecting a HOUSE in Serviços mode
+                            resetForm();
+                            document.getElementById('mawb').value = data.mawb;
+                            isServicosMode = true;
+                        }
 
-                        document.getElementById('mawb').value = data.mawb;
-
-                        // Adiciona o HOUSE à lista e ao estado
-                        isServicosMode = true;
-                        houses = [data.house];
-                        houseData[data.house] = data;
+                        // Create a unique name for the new entry
+                        const uniqueHouseName = `${data.house}-${servicosCounter++}`;
+                        houses.push(uniqueHouseName);
+                        houseData[uniqueHouseName] = JSON.parse(JSON.stringify(data)); // Deep copy
 
                         // Clear the 'responsaveis' field for the new entry
-                        houseData[data.house].responsaveis = [];
+                        houseData[uniqueHouseName].responsaveis = [];
 
                         updateHousesDisplay();
-                        selectHouse(data.house);
+                        selectHouse(uniqueHouseName);
 
                         showAlert('Dados carregados. Adicione um novo responsável e salve.', 'success');
                     } else {
