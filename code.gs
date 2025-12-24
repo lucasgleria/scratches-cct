@@ -189,6 +189,45 @@ function getHousesFromSpreadsheet(spreadsheetId) {
   }
 }
 
+/** Retorna uma lista única e ordenada de todos os HOUSEs de TODAS as planilhas de importação. */
+function getAllHouses() {
+  try {
+    const allHouses = new Set();
+
+    IMPORT_SPREADSHEETS.forEach(spreadsheetInfo => {
+      try {
+        const ss = SpreadsheetApp.openById(spreadsheetInfo.id);
+        const sheets = ss.getSheets();
+        if (sheets.length < 3) {
+          console.warn(`Spreadsheet "${spreadsheetInfo.name}" (${spreadsheetInfo.id}) has fewer than 3 sheets and will be skipped.`);
+          return;
+        }
+        const ws = sheets[2];
+
+        const lastRow = ws.getLastRow();
+        if (lastRow >= 2) {
+          const houseColumn = ws.getRange(2, 2, lastRow - 1, 1).getValues();
+          houseColumn.forEach(row => {
+            const house = _normHouse(row[0]);
+            if (house) {
+              allHouses.add(house);
+            }
+          });
+        }
+      } catch (e) {
+        console.error(`Failed to process spreadsheet "${spreadsheetInfo.name}" (${spreadsheetInfo.id}): ${e.message}`);
+      }
+    });
+
+    const uniqueHouses = Array.from(allHouses);
+    uniqueHouses.sort();
+
+    return _asOk(uniqueHouses);
+  } catch (err) {
+    return _asError('Falha ao buscar HOUSEs de todas as planilhas.', err.message);
+  }
+}
+
 /** Retorna os dados da linha mais recente de um HOUSE específico. */
 function getDataForHouse(spreadsheetId, house) {
   try {
@@ -359,7 +398,8 @@ function _updateMawbBlockColoring(sheet, mawb) {
  *  dtas?:        {house,value}[],
  *  previsoes?:   {house,value}[],
  *  responsaveis?:{house,value}[],
- *  observacoes?: {house,value}[]
+ *  observacoes?: {house,value}[],
+ *  isServicosMode?: boolean
  * }
  */
 function saveEntries(payload) {
@@ -371,6 +411,7 @@ function saveEntries(payload) {
       mawb: rawMawb,
       houses,
       isEditMode = false,
+      isServicosMode = false,
       refs = [],
       consignees = [],
       entregas = [],
@@ -528,17 +569,26 @@ function saveEntries(payload) {
     }
 
     if (toInsert.length) {
-      let insertRow;
-      if (occurrences.length > 0) {
-        insertRow = endRow + 1;
-        ws.insertRowsAfter(endRow, toInsert.length);
-      } else {
-        const lastRow = ws.getLastRow();
-        insertRow = lastRow === 0 ? 1 : lastRow + 2;
-      }
-      const range = ws.getRange(insertRow, 1, toInsert.length, 9);
-      range.setNumberFormat('@');
-      range.setValues(toInsert);
+        let insertRow;
+        if (isServicosMode) {
+            const lastRow = ws.getLastRow();
+            insertRow = lastRow + 1;
+            ws.insertRows(insertRow, toInsert.length);
+        } else if (occurrences.length > 0) {
+            insertRow = endRow + 1;
+            ws.insertRowsAfter(endRow, toInsert.length);
+        } else {
+            const lastRow = ws.getLastRow();
+            insertRow = lastRow === 0 ? 1 : lastRow + 2;
+        }
+
+        const range = ws.getRange(insertRow, 1, toInsert.length, 9);
+        range.setNumberFormat('@');
+        range.setValues(toInsert);
+
+        if (isServicosMode) {
+            range.setBackground('#fff2cc'); // Light yellow
+        }
     }
     _updateMawbBlockColoring(ws, mawbNorm);
 

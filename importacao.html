@@ -60,6 +60,32 @@
 
             <div id="alerts"></div>
 
+            <div class="form-section">
+                <div class="toggles-section">
+                    <div class="toggle-container">
+                        <label class="switch">
+                            <input type="checkbox" id="servicosToggle">
+                            <span class="slider"></span>
+                        </label>
+                        <label for="servicosToggle">Serviços</label>
+                    </div>
+                    <div class="toggle-container">
+                        <label class="switch">
+                            <input type="checkbox" id="protestoToggle">
+                            <span class="slider"></span>
+                        </label>
+                        <label for="protestoToggle">Carta Protesto</label>
+                    </div>
+                    <div class="toggle-container">
+                        <label class="switch">
+                            <input type="checkbox" id="ajustesToggle">
+                            <span class="slider"></span>
+                        </label>
+                        <label for="ajustesToggle">Ajustes</label>
+                    </div>
+                </div>
+            </div>
+
             <div id="dataSection" class="form-section" style="display: none;">
                 <h2>Dados por HOUSE</h2>
                 <div id="housesData"></div>
@@ -73,6 +99,7 @@
     </div>
 
     <?!= include('editor-modal.html'); ?>
+    <?!= include('servicos-modal.html'); ?>
     <?!= include('main.js'); ?>
 </body>
 </html>
