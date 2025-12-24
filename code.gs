@@ -572,7 +572,7 @@ function saveEntries(payload) {
         let insertRow;
         if (isServicosMode) {
             const lastRow = ws.getLastRow();
-            insertRow = lastRow + 1;
+            insertRow = lastRow + 2; // Add a blank row before inserting
             ws.insertRows(insertRow, toInsert.length);
         } else if (occurrences.length > 0) {
             insertRow = endRow + 1;
@@ -590,7 +590,9 @@ function saveEntries(payload) {
             range.setBackground('#f8d7da'); // Light red
         }
     }
-    _updateMawbBlockColoring(ws, mawbNorm);
+    if (!isServicosMode) {
+        _updateMawbBlockColoring(ws, mawbNorm);
+    }
 
     return _asOk({
       inserted: toInsert.length,
