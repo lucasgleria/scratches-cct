@@ -316,6 +316,79 @@ function getRowColors(rowData, sheetName) {
  *  observacoes?: {house,value}[]
  * }
  */
+/** Retorna uma lista única e ordenada de todos os HOUSEs de todas as abas de uma planilha. */
+function getHousesFromAllSheets(spreadsheetId) {
+    try {
+        if (!spreadsheetId) return _asError('Selecione uma planilha primeiro.');
+
+        const ss = SpreadsheetApp.openById(spreadsheetId);
+        const sheets = ss.getSheets();
+        const allHouses = new Set();
+
+        sheets.forEach(sheet => {
+            const lastRow = sheet.getLastRow();
+            if (lastRow < 2) return;
+
+            const houseColumn = sheet.getRange(2, 2, lastRow - 1, 1).getValues();
+            houseColumn.forEach(row => {
+                const house = _normHouse(row[0]);
+                if (house) {
+                    allHouses.add(house);
+                }
+            });
+        });
+
+        const uniqueHouses = [...allHouses].sort();
+        return _asOk(uniqueHouses);
+
+    } catch (err) {
+        return _asError('Falha ao buscar HOUSEs da planilha.', err.message);
+    }
+}
+
+/** Duplica a linha mais recente de um HOUSE, adiciona um novo responsável e colore a nova linha. */
+function duplicateAndAnnotateHouse(spreadsheetId, house, novoResponsavel) {
+    try {
+        if (!spreadsheetId) return _asError('ID da planilha não fornecido.');
+        if (!house) return _asError('Código HOUSE não fornecido.');
+        if (!novoResponsavel) return _asError('Novo responsável não fornecido.');
+
+        const ss = SpreadsheetApp.openById(spreadsheetId);
+        const sheets = ss.getSheets();
+        if (sheets.length < 3) return _asError('A planilha selecionada não tem pelo menos 3 abas.');
+        const ws = sheets[2];
+
+        // Encontra a última ocorrência do HOUSE
+        const columnToSearch = ws.getRange("B:B");
+        const finder = columnToSearch.createTextFinder(_normHouse(house)).matchEntireCell(true);
+        const occurrences = finder.findAll().reverse();
+        if (occurrences.length === 0) return _asError(`HOUSE "${house}" não encontrado na planilha.`);
+        const latestRowIndex = occurrences[0].getRow();
+
+        // Copia os dados da linha
+        const rowData = ws.getRange(latestRowIndex, 1, 1, 9).getValues()[0];
+
+        // Adiciona o novo responsável
+        const RESP_COL_INDEX = 7; // Coluna H
+        rowData[RESP_COL_INDEX] = _norm(novoResponsavel);
+
+        // Insere a nova linha abaixo da original
+        const newRowIndex = latestRowIndex + 1;
+        ws.insertRowAfter(latestRowIndex);
+        const newRange = ws.getRange(newRowIndex, 1, 1, 9);
+        newRange.setValues([rowData]);
+
+        // Define a cor da nova linha
+        const DUPLICATE_COLOR = '#fff2cc'; // Amarelo claro
+        newRange.setBackground(DUPLICATE_COLOR);
+
+        return _asOk({ message: 'Linha duplicada e anotada com sucesso.' });
+
+    } catch (err) {
+        return _asError('Falha ao duplicar e anotar o HOUSE.', err.message);
+    }
+}
+
 function saveEntries(payload) {
   try {
     if (!payload || typeof payload !== 'object') return _asError('Payload inválido.');
