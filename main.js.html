@@ -2,7 +2,7 @@
         // Estado da aplicação
         let houses = [];
         let houseData = {};
-        let selectedHouse = null;
+        let selectedHouseId = null;
         let isEditMode = false;
         let isServicosMode = false;
         let servicosCounter = 1;
@@ -121,7 +121,7 @@
         function clearHouses() {
             houses = [];
             houseData = {};
-            selectedHouse = null;
+            selectedHouseId = null;
             isEditMode = false; // Garante que o modo de edição seja desativado
             updateHousesDisplay();
             updateDataSection();
@@ -281,13 +281,13 @@
         }
 
         // Remove um HOUSE
-        function removeHouse(house) {
-            const index = houses.indexOf(house);
+        function removeHouse(houseId) {
+            const index = houses.findIndex(h => h.id === houseId);
             if (index > -1) {
                 houses.splice(index, 1);
-                delete houseData[house];
-                if (selectedHouse === house) {
-                    selectedHouse = null;
+                delete houseData[houseId];
+                if (selectedHouseId === houseId) {
+                    selectedHouseId = null;
                 }
                 updateHousesDisplay();
                 updateDataSection();
@@ -347,25 +347,10 @@
         }
 
         // Seleciona um HOUSE para edição
-        function selectHouse(house) {
-            if (selectedHouse === house) return;
-
-            // Remove 'selected' class from previously selected item
-            if (selectedHouse) {
-                const oldItem = document.getElementById(`house-list-item-${selectedHouse}`);
-                if (oldItem) {
-                    oldItem.classList.remove('selected');
-                }
-            }
-
-            selectedHouse = house;
-
-            // Add 'selected' class to the newly selected item
-            const newItem = document.getElementById(`house-list-item-${house}`);
-            if (newItem) {
-                newItem.classList.add('selected');
-            }
-
+        function selectHouse(houseId) {
+            if (selectedHouseId === houseId) return;
+            selectedHouseId = houseId;
+            updateHousesDisplay(); // Re-render to update selection highlight
             updateDataSection();
         }
 
@@ -380,12 +365,12 @@
             let html = `
                 <ul class="house-list">
                     ${houses.map((house, index) => `
-                        <li class="house-list-item ${selectedHouse === house ? 'selected' : ''}"
-                            id="house-list-item-${house}"
-                            onclick="selectHouse('${house}')"
+                        <li class="house-list-item ${selectedHouseId === house.id ? 'selected' : ''}"
+                            id="house-list-item-${house.id}"
+                            onclick="selectHouse('${house.id}')"
                             ondblclick="editHouseName(${index})">
-                            <span id="house-name-${index}">${house}</span>
-                            <button class="remove-house-btn" onclick="event.stopPropagation(); removeHouse('${house}');">×</button>
+                            <span id="house-name-${index}">${house.name}</span>
+                            <button class="remove-house-btn" onclick="event.stopPropagation(); removeHouse('${house.id}');">×</button>
                         </li>
                     `).join('')}
                 </ul>
@@ -402,7 +387,7 @@
             const section = document.getElementById('dataSection');
             const container = document.getElementById('housesData');
 
-            if (!selectedHouse) {
+            if (!selectedHouseId) {
                 section.style.display = 'block';
                 container.innerHTML = `
             <div class="empty-state">
@@ -413,24 +398,26 @@
                 return;
             }
 
-            const house = selectedHouse;
+            const house = houses.find(h => h.id === selectedHouseId);
+            if (!house) return;
+
             section.style.display = 'block';
             container.innerHTML = `
         <div class="house-item-header">
-            <h2 class="house-title">Dados para ${house}</h2>
+            <h2 class="house-title">Dados para ${house.name}</h2>
         </div>
 
         <div class="toggles-section">
             <div class="toggle-container">
                 <label class="switch">
-                    <input type="checkbox" id="fridgeToggle_${house}" onchange="toggleFridge('${house}')">
+                    <input type="checkbox" id="fridgeToggle_${house.id}" onchange="toggleFridge('${house.id}')">
                     <span class="slider"></span>
                 </label>
-                <label for="fridgeToggle_${house}">Carga de Geladeira</label>
+                <label for="fridgeToggle_${house.id}">Carga de Geladeira</label>
             </div>
-            <div id="fridgeOptions_${house}" style="display: none; margin-top: 10px;">
-                <label for="fridgeType_${house}">Tipo:</label>
-                <select id="fridgeType_${house}" onchange="setFridgeType('${house}')">
+            <div id="fridgeOptions_${house.id}" style="display: none; margin-top: 10px;">
+                <label for="fridgeType_${house.id}">Tipo:</label>
+                <select id="fridgeType_${house.id}" onchange="setFridgeType('${house.id}')">
                     <option value="">Selecione...</option>
                     <option value="FRI">FRI</option>
                     <option value="FRO">FRO</option>
@@ -441,13 +428,13 @@
             </div>
         </div>
         <div class="data-grid">
-            ${dataTypes.map(type => renderDataField(type, house)).join('')}
+            ${dataTypes.map(type => renderDataField(type, house.id)).join('')}
         </div>
         <div class="special-data-section">
-            ${specialDataTypes.map(type => renderDataField(type, house)).join('')}
+            ${specialDataTypes.map(type => renderDataField(type, house.id)).join('')}
         </div>
     `;
-            syncToggles(house);
+            syncToggles(house.id);
         }
 
         function renderDataField(type, house) {
@@ -591,7 +578,6 @@
                 return;
             }
 
-            // Validação do MAWB
             const mawbValidation = validateMAWB(mawb);
             if (!mawbValidation.valid) {
                 showFieldError('mawb', 'mawbError', mawbValidation.message);
@@ -604,13 +590,15 @@
                 return;
             }
 
+            const isServicosSave = houses.some(h => h.id.startsWith('service-'));
+
             // Prepara payload
             const payload = {
                 spreadsheetId,
                 mawb,
-                houses,
+                houses: houses.map(h => h.name),
                 isEditMode,
-                isServicosMode,
+                isServicosMode: isServicosSave,
                 refs: [],
                 consignees: [],
                 entregas: [],
@@ -622,13 +610,13 @@
 
             // Coleta todos os dados de forma explícita para evitar erros
             houses.forEach(house => {
-                (houseData[house].refs || []).forEach(value => payload.refs.push({house, value}));
-                (houseData[house].consignees || []).forEach(value => payload.consignees.push({house, value}));
-                (houseData[house].entregas || []).forEach(value => payload.entregas.push({house, value}));
-                (houseData[house].dtas || []).forEach(value => payload.dtas.push({house, value}));
-                (houseData[house].previsoes || []).forEach(value => payload.previsoes.push({house, value}));
-                (houseData[house].responsaveis || []).forEach(value => payload.responsaveis.push({house, value}));
-                (houseData[house].observacoes || []).forEach(value => payload.observacoes.push({house, value}));
+                (houseData[house.id].refs || []).forEach(value => payload.refs.push({ house: house.name, value }));
+                (houseData[house.id].consignees || []).forEach(value => payload.consignees.push({ house: house.name, value }));
+                (houseData[house.id].entregas || []).forEach(value => payload.entregas.push({ house: house.name, value }));
+                (houseData[house.id].dtas || []).forEach(value => payload.dtas.push({ house: house.name, value }));
+                (houseData[house.id].previsoes || []).forEach(value => payload.previsoes.push({ house: house.name, value }));
+                (houseData[house.id].responsaveis || []).forEach(value => payload.responsaveis.push({ house: house.name, value }));
+                (houseData[house.id].observacoes || []).forEach(value => payload.observacoes.push({ house: house.name, value }));
             });
 
             // Mostra loading
@@ -672,9 +660,10 @@
             document.getElementById('mawb').value = '';
             houses = [];
             houseData = {};
-            selectedHouse = null;
+            selectedHouseId = null;
             isEditMode = false;
             isServicosMode = false;
+            servicosCounter = 1; // Reset counter
             updateHousesDisplay();
             updateDataSection();
             document.getElementById('dataSection').style.display = 'none';
@@ -866,9 +855,9 @@
             }
         }
 
-        function selectHouseForServicos(house) {
+        function selectHouseForServicos(houseName) {
             const spreadsheetId = document.getElementById('spreadsheet').value;
-            showAlert('Carregando dados para o HOUSE: ' + house, 'success');
+            showAlert('Carregando dados para o HOUSE: ' + houseName, 'success');
             closeServicosModal();
 
             google.script.run
@@ -876,23 +865,21 @@
                     if (result.ok) {
                         const data = result.payload;
 
-                        if (!isServicosMode) {
-                            // First time selecting a HOUSE in Serviços mode
+                        // On the first service selection, reset the form and set MAWB
+                        if (houses.every(h => !h.id.startsWith('service-'))) {
                             resetForm();
                             document.getElementById('mawb').value = data.mawb;
-                            isServicosMode = true;
                         }
 
-                        // Create a unique name for the new entry
-                        const uniqueHouseName = `${data.house}-${servicosCounter++}`;
-                        houses.push(uniqueHouseName);
-                        houseData[uniqueHouseName] = JSON.parse(JSON.stringify(data)); // Deep copy
+                        const uniqueHouseId = `service-${servicosCounter++}`;
+                        houses.push({ id: uniqueHouseId, name: data.house });
+                        houseData[uniqueHouseId] = JSON.parse(JSON.stringify(data)); // Deep copy
 
                         // Clear the 'responsaveis' field for the new entry
-                        houseData[uniqueHouseName].responsaveis = [];
+                        houseData[uniqueHouseId].responsaveis = [];
 
                         updateHousesDisplay();
-                        selectHouse(uniqueHouseName);
+                        selectHouse(uniqueHouseId);
 
                         showAlert('Dados carregados. Adicione um novo responsável e salve.', 'success');
                     } else {
@@ -902,6 +889,6 @@
                 .withFailureHandler(function(error) {
                     showAlert(`Erro fatal ao carregar dados do HOUSE: ${error.message}`, 'error');
                 })
-                .getDataForHouse(spreadsheetId, house);
+                .getDataForHouse(spreadsheetId, houseName);
         }
 </script>

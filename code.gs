@@ -385,23 +385,6 @@ function _updateMawbBlockColoring(sheet, mawb) {
 }
 
 
-/**
- * saveEntries(payload)
- * payload:
- * {
- *  spreadsheetId: string,
- *  mawb: string,
- *  houses: string[],                       // ["H1","H2",...]
- *  refs?:        {house,value}[],
- *  consignees?:  {house,value}[],
- *  entregas?:    {house,value}[],
- *  dtas?:        {house,value}[],
- *  previsoes?:   {house,value}[],
- *  responsaveis?:{house,value}[],
- *  observacoes?: {house,value}[],
- *  isServicosMode?: boolean
- * }
- */
 function saveEntries(payload) {
   try {
     if (!payload || typeof payload !== 'object') return _asError('Payload inválido.');
@@ -421,64 +404,84 @@ function saveEntries(payload) {
       observacoes = []
     } = payload;
 
-    // Remove o hífen do MAWB para consistência
     const mawb = _norm(rawMawb).replace(/-/g, '');
+    const joinVals = (vals) => (vals && vals.length ? vals.join(MULTI_JOIN) : '');
 
     if (!spreadsheetId) return _asError('Selecione uma planilha.');
     if (!Array.isArray(houses) || houses.length === 0) return _asError('Adicione ao menos um HOUSE.');
 
-    // Validações de entrada
     const mawbValidation = validateMAWB(mawb);
-    if (!mawbValidation.valid) {
-      return _asError(mawbValidation.message);
-    }
-
-    // Valida todos os HOUSE codes
-    for (let i = 0; i < houses.length; i++) {
-      const houseValidation = validateHOUSE(houses[i]);
-      if (!houseValidation.valid) {
-        return _asError(`HOUSE "${houses[i]}": ${houseValidation.message}`);
-      }
+    if (!mawbValidation.valid) return _asError(mawbValidation.message);
+    for (const house of houses) {
+      const houseValidation = validateHOUSE(house);
+      if (!houseValidation.valid) return _asError(`HOUSE "${house}": ${houseValidation.message}`);
     }
 
     const ss = SpreadsheetApp.openById(spreadsheetId);
     const sheets = ss.getSheets();
     if (sheets.length < 3) return _asError('A planilha selecionada não possui 3 abas.');
-    const ws = sheets[2]; // terceira aba
+    const ws = sheets[2];
 
-    // ----------------- Helpers -----------------
+    if (isServicosMode) {
+      const dataCounters = {};
+      const entries = payload.houses.map(houseName => {
+        const normHouse = _normHouse(houseName);
+        const entry = { house: normHouse };
+
+        if (!dataCounters[normHouse]) {
+          dataCounters[normHouse] = { refs: 0, consignees: 0, entregas: 0, dtas: 0, previsoes: 0, responsaveis: 0, observacoes: 0 };
+        }
+
+        ['refs', 'consignees', 'entregas', 'dtas', 'previsoes', 'responsaveis', 'observacoes'].forEach(field => {
+          const dataArray = payload[field] || [];
+          const counter = dataCounters[normHouse][field];
+          let dataFound = false;
+          let currentMatch = 0;
+          for (let i = 0; i < dataArray.length; i++) {
+            if (_normHouse(dataArray[i].house) === normHouse) {
+              if (currentMatch === counter) {
+                entry[field] = [_norm(dataArray[i].value)];
+                dataCounters[normHouse][field] = counter + 1;
+                dataFound = true;
+                break;
+              }
+              currentMatch++;
+            }
+          }
+          if (!dataFound) entry[field] = [];
+        });
+        return entry;
+      });
+
+      const toInsert = entries.map(data => ([
+        mawb, data.house, joinVals(data.refs), joinVals(data.consignees),
+        joinVals(data.entregas), joinVals(data.dtas), joinVals(data.previsoes),
+        joinVals(data.responsaveis), joinVals(data.observacoes)
+      ]));
+
+      if (toInsert.length > 0) {
+        const lastRow = ws.getLastRow();
+        const insertRowIndex = lastRow + 2;
+        ws.insertRows(insertRowIndex, toInsert.length);
+        const range = ws.getRange(insertRowIndex, 1, toInsert.length, 9);
+        range.setNumberFormat('@').setValues(toInsert).setBackground('#f8d7da');
+      }
+
+      return _asOk({ inserted: toInsert.length, updated: 0, removed_duplicates: 0 });
+    }
+
+    // --- Início da Lógica Normal/Edição ---
     const COLS = { MAWB:1, HOUSE:2, REF:3, CONS:4, ENT:5, DTA:6, PREV:7, RESP:8, OBS:9 };
-
-    const collectByHouse = (arr, house) => {
-      const values = arr
-        .filter(x => _normHouse(x && x.house) === house)
-        .map(x => _norm(x && x.value))
-        .filter(Boolean);
-      return Array.from(new Set(values));
-    };
-
-    const joinVals = (vals) => (vals.length ? vals.join(MULTI_JOIN) : '');
-
     const mergeCell = (oldVal, newVal, isEdit) => {
-      const a = _norm(oldVal);
-      const b = _norm(newVal);
-      if (isEdit) return b;
-      if (!a && !b) return '';
-      if (!a) return b;
-      if (!b) return a;
+      const a = _norm(oldVal); const b = _norm(newVal);
+      if (isEdit) return b; if (!a) return b; if (!b) return a;
       const parts = a.split(MULTI_JOIN).map(_norm);
       return parts.includes(b) ? a : `${a}${MULTI_JOIN}${b}`;
     };
 
-    const mawbNorm = _norm(mawb);
-
-    // --- Performance Improvement: Use TextFinder to locate MAWB block ---
-    const finder = ws.createTextFinder(mawbNorm).matchEntireCell(true);
+    const finder = ws.createTextFinder(mawb).matchEntireCell(true);
     const occurrences = finder.findAll();
-
-    let table = [];
-    let firstDataRow = 1;
-    let endRow = 0;
+    let table = [], firstDataRow = 1, endRow = 0;
 
     if (occurrences.length > 0) {
       firstDataRow = occurrences[0].getRowIndex();
@@ -494,10 +497,8 @@ function saveEntries(payload) {
 
     table.forEach((row, i) => {
       if (row.every(cell => _norm(cell) === '')) return;
-
       const key = keyFor(row[COLS.HOUSE - 1]);
       const absRow = firstDataRow + i;
-
       if (!index.has(key)) {
         index.set(key, { rowIndex: absRow, row: row.slice() });
       } else {
@@ -510,24 +511,13 @@ function saveEntries(payload) {
     });
 
     const housesClean = Array.from(new Set(houses.map(_normHouse)));
-
     const houseDataMap = new Map();
-    housesClean.forEach(h => {
-        const cleanHouse = isServicosMode ? h.replace(/-\d+$/, '') : h;
-        houseDataMap.set(h, {
-            mawb: mawbNorm, house: cleanHouse, refs: [], consignees: [], entregas: [],
-            dtas: [], previsoes: [], responsaveis: [], observacoes: []
-        });
-    });
+    housesClean.forEach(h => houseDataMap.set(h, { mawb, house: h, refs: [], consignees: [], entregas: [], dtas: [], previsoes: [], responsaveis: [], observacoes: [] }));
 
-    const appendToMap = (map, arr, field) => {
-        arr.forEach(({ house, value }) => {
-            const h = _normHouse(house);
-            if (map.has(h)) {
-                map.get(h)[field].push(_norm(value));
-            }
-        });
-    };
+    const appendToMap = (map, arr, field) => arr.forEach(({ house, value }) => {
+      const h = _normHouse(house);
+      if (map.has(h)) map.get(h)[field].push(_norm(value));
+    });
 
     appendToMap(houseDataMap, refs, 'refs');
     appendToMap(houseDataMap, consignees, 'consignees');
@@ -543,17 +533,13 @@ function saveEntries(payload) {
       joinVals(data.responsaveis), joinVals(data.observacoes)
     ]));
 
-    const toInsert = [];
-    const pendingUpdates = [];
-
+    const toInsert = [], pendingUpdates = [];
     calculatedRows.forEach(r => {
       const key = keyFor(r[COLS.HOUSE - 1]);
-      if (index.has(key) && !isServicosMode) {
+      if (index.has(key)) {
         const kept = index.get(key);
         const updated = kept.row.slice();
-        for (let c = COLS.REF; c <= COLS.OBS; c++) {
-          updated[c - 1] = mergeCell(updated[c - 1], r[c - 1], isEditMode);
-        }
+        for (let c = COLS.REF; c <= COLS.OBS; c++) updated[c - 1] = mergeCell(updated[c - 1], r[c - 1], isEditMode);
         pendingUpdates.push({ rowIndex: kept.rowIndex, row: updated });
         index.set(key, { rowIndex: kept.rowIndex, row: updated });
       } else {
@@ -561,47 +547,23 @@ function saveEntries(payload) {
       }
     });
 
-    pendingUpdates.forEach(update => {
-      const range = ws.getRange(update.rowIndex, 1, 1, 9);
-      range.setNumberFormat('@');
-      range.setValues([update.row]);
-    });
-
-    if (duplicatesToDelete.length) {
-      duplicatesToDelete.sort((a, b) => b - a).forEach(r => ws.deleteRow(r));
-    }
+    pendingUpdates.forEach(update => ws.getRange(update.rowIndex, 1, 1, 9).setNumberFormat('@').setValues([update.row]));
+    if (duplicatesToDelete.length) duplicatesToDelete.sort((a, b) => b - a).forEach(r => ws.deleteRow(r));
 
     if (toInsert.length) {
-        let insertRow;
-        if (isServicosMode) {
-            const lastRow = ws.getLastRow();
-            insertRow = lastRow + 2; // Add a blank row before inserting
-            ws.insertRows(insertRow, toInsert.length);
-        } else if (occurrences.length > 0) {
-            insertRow = endRow + 1;
-            ws.insertRowsAfter(endRow, toInsert.length);
-        } else {
-            const lastRow = ws.getLastRow();
-            insertRow = lastRow === 0 ? 1 : lastRow + 2;
-        }
-
-        const range = ws.getRange(insertRow, 1, toInsert.length, 9);
-        range.setNumberFormat('@');
-        range.setValues(toInsert);
-
-        if (isServicosMode) {
-            range.setBackground('#f8d7da'); // Light red
-        }
-    }
-    if (!isServicosMode) {
-        _updateMawbBlockColoring(ws, mawbNorm);
+      let insertRow;
+      if (occurrences.length > 0) {
+        insertRow = endRow + 1;
+        ws.insertRowsAfter(endRow, toInsert.length);
+      } else {
+        const lastRow = ws.getLastRow();
+        insertRow = lastRow === 0 ? 1 : lastRow + 2;
+      }
+      ws.getRange(insertRow, 1, toInsert.length, 9).setNumberFormat('@').setValues(toInsert);
     }
 
-    return _asOk({
-      inserted: toInsert.length,
-      updated: pendingUpdates.length,
-      removed_duplicates: duplicatesToDelete.length
-    });
+    _updateMawbBlockColoring(ws, mawb);
+    return _asOk({ inserted: toInsert.length, updated: pendingUpdates.length, removed_duplicates: duplicatesToDelete.length });
 
   } catch (err) {
     return _asError('Falha ao salvar os dados.', err && err.message ? err.message : String(err));
