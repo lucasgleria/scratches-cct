@@ -1,11 +1,11 @@
 <script>
         // Estado da aplicação
-        let houses = [];
-        let houseData = {};
-        let selectedHouse = null;
+        let houses = []; // Array of objects: { id, name }
+        let houseData = {}; // Keyed by house.id
+        let selectedHouse = null; // Stores the selected house's id
+        let houseIdCounter = 0; // To generate unique IDs for houses
         let isEditMode = false;
         let isServicosMode = false;
-        let servicosCounter = 1;
 
         // Tipos de dados disponíveis
         const dataTypes = [
@@ -127,10 +127,10 @@
             updateDataSection();
         }
 
-        function toggleFridge(house) {
-            const isChecked = document.getElementById(`fridgeToggle_${house}`).checked;
+        function toggleFridge(houseId) {
+            const isChecked = document.getElementById(`fridgeToggle_${houseId}`).checked;
             const fridgeCodes = ["FRI", "FRO", "COL", "ERT", "CRT"];
-            let obs = houseData[house]?.observacoes || [];
+            let obs = houseData[houseId]?.observacoes || [];
 
             // Remove all existing fridge codes to avoid duplicates or conflicts
             obs = obs.filter(o => !fridgeCodes.includes(o));
@@ -139,14 +139,14 @@
                 obs.push('FRI'); // Add default fridge code
             }
 
-            houseData[house].observacoes = obs;
+            houseData[houseId].observacoes = obs;
             updateDataSection();
         }
 
-        function setFridgeType(house) {
-            const value = document.getElementById(`fridgeType_${house}`).value;
+        function setFridgeType(houseId) {
+            const value = document.getElementById(`fridgeType_${houseId}`).value;
             const fridgeCodes = ["FRI", "FRO", "COL", "ERT", "CRT"];
-            let obs = houseData[house]?.observacoes || [];
+            let obs = houseData[houseId]?.observacoes || [];
 
             // Remove all existing fridge codes
             obs = obs.filter(o => !fridgeCodes.includes(o));
@@ -155,13 +155,13 @@
                 obs.push(value); // Add the selected fridge code
             }
 
-            houseData[house].observacoes = obs;
+            houseData[houseId].observacoes = obs;
             updateDataSection();
         }
 
-        function toggleSimpleObservation(house, value, toggleId) {
+        function toggleSimpleObservation(houseId, value, toggleId) {
             const isChecked = document.getElementById(toggleId).checked;
-            let obs = houseData[house]?.observacoes || [];
+            let obs = houseData[houseId]?.observacoes || [];
             const index = obs.indexOf(value);
 
             if (isChecked) {
@@ -173,7 +173,7 @@
                     obs.splice(index, 1);
                 }
             }
-            houseData[house].observacoes = obs;
+            houseData[houseId].observacoes = obs;
             updateDataSection();
         }
 
@@ -216,7 +216,7 @@
                     continue;
                 }
 
-                if (houses.includes(house) || potentialHouses.has(house)) {
+                if (houses.some(h => h.name === house) || potentialHouses.has(house)) {
                     errors.push(`"${originalValue}" resulta em um HOUSE duplicado na lista de adição.`);
                     continue;
                 }
@@ -259,16 +259,17 @@
 
             if (housesToAdd.length > 0) {
                 housesToAdd.forEach(houseName => {
-                    if (!houses.includes(houseName)) {
-                        houses.push(houseName);
-                        houseData[houseName] = {};
-                        dataTypes.forEach(type => houseData[houseName][type.key] = []);
-                        specialDataTypes.forEach(type => houseData[houseName][type.key] = []);
+                    if (!houses.some(h => h.name === houseName)) {
+                        const newId = houseIdCounter++;
+                        houses.push({ id: newId, name: houseName });
+                        houseData[newId] = {};
+                        dataTypes.forEach(type => houseData[newId][type.key] = []);
+                        specialDataTypes.forEach(type => houseData[newId][type.key] = []);
                     }
                 });
                 updateHousesDisplay();
                 if (housesToAdd.length === 1) {
-                    selectHouse(houses[houses.length - 1]);
+                    selectHouse(houses[houses.length - 1].id);
                 }
             }
         }
@@ -281,12 +282,12 @@
         }
 
         // Remove um HOUSE
-        function removeHouse(house) {
-            const index = houses.indexOf(house);
+        function removeHouse(houseId) {
+            const index = houses.findIndex(h => h.id === houseId);
             if (index > -1) {
                 houses.splice(index, 1);
-                delete houseData[house];
-                if (selectedHouse === house) {
+                delete houseData[houseId];
+                if (selectedHouse === houseId) {
                     selectedHouse = null;
                 }
                 updateHousesDisplay();
@@ -294,30 +295,39 @@
             }
         }
 
-        function editHouseName(index) {
-            console.log("editHouseName called for index:", index);
-            const span = document.getElementById(`house-name-${index}`);
-            const currentName = span.textContent;
-            span.innerHTML = `<input type="text" id="edit-house-${index}" value="${currentName}"
-                                     onblur="saveHouseName(${index})"
-                                     onkeypress="handleHouseNameKey(event, ${index})">`;
-            document.getElementById(`edit-house-${index}`).focus();
+        function editHouseName(houseId) {
+            const house = houses.find(h => h.id === houseId);
+            if (!house) return;
+
+            const span = document.getElementById(`house-name-${houseId}`);
+            if (span) {
+                span.innerHTML = `<input type="text" id="edit-house-${houseId}" value="${house.name}"
+                                     onblur="saveHouseName(${houseId})"
+                                     onkeypress="handleHouseNameKey(event, ${houseId})">`;
+                document.getElementById(`edit-house-${houseId}`).focus();
+            }
         }
 
-        function handleHouseNameKey(event, index) {
+        function handleHouseNameKey(event, houseId) {
             if (event.key === 'Enter') {
-                saveHouseName(index);
+                saveHouseName(houseId);
             } else if (event.key === 'Escape') {
                 updateHousesDisplay(); // Revert changes
             }
         }
 
-        function saveHouseName(index) {
-            const input = document.getElementById(`edit-house-${index}`);
+        function saveHouseName(houseId) {
+            const input = document.getElementById(`edit-house-${houseId}`);
+            if (!input) {
+                updateHousesDisplay();
+                return;
+            }
             const newName = input.value.trim().toUpperCase();
-            const oldName = houses[index];
+            const house = houses.find(h => h.id === houseId);
 
-            if (newName === oldName) {
+            if (!house) return; // Should not happen
+
+            if (newName === house.name) {
                 updateHousesDisplay();
                 return;
             }
@@ -329,39 +339,34 @@
                 return;
             }
 
-            if (houses.includes(newName)) {
+            if (houses.some(h => h.name === newName && h.id !== houseId)) {
                 showAlert(`HOUSE "${newName}" já existe.`, 'error');
                 updateHousesDisplay();
                 return;
             }
 
             // Update state
-            houses[index] = newName;
-            houseData[newName] = houseData[oldName];
-            delete houseData[oldName];
-            if (selectedHouse === oldName) {
-                selectedHouse = newName;
-            }
-
+            house.name = newName;
             updateHousesDisplay();
         }
 
         // Seleciona um HOUSE para edição
-        function selectHouse(house) {
-            if (selectedHouse === house) return;
+        function selectHouse(houseId) {
+            // Se já estiver selecionado, não faz nada para permitir a interação (ex: double-click)
+            if (selectedHouse === houseId) return;
 
-            // Remove 'selected' class from previously selected item
-            if (selectedHouse) {
+            // Remove a classe 'selected' do item anteriormente selecionado
+            if (selectedHouse !== null) {
                 const oldItem = document.getElementById(`house-list-item-${selectedHouse}`);
                 if (oldItem) {
                     oldItem.classList.remove('selected');
                 }
             }
 
-            selectedHouse = house;
+            selectedHouse = houseId;
 
-            // Add 'selected' class to the newly selected item
-            const newItem = document.getElementById(`house-list-item-${house}`);
+            // Adiciona a classe 'selected' ao novo item selecionado
+            const newItem = document.getElementById(`house-list-item-${houseId}`);
             if (newItem) {
                 newItem.classList.add('selected');
             }
@@ -378,18 +383,18 @@
             }
 
             let html = `
-                <ul class="house-list">
-                    ${houses.map((house, index) => `
-                        <li class="house-list-item ${selectedHouse === house ? 'selected' : ''}"
-                            id="house-list-item-${house}"
-                            onclick="selectHouse('${house}')"
-                            ondblclick="editHouseName(${index})">
-                            <span id="house-name-${index}">${house}</span>
-                            <button class="remove-house-btn" onclick="event.stopPropagation(); removeHouse('${house}');">×</button>
-                        </li>
-                    `).join('')}
-                </ul>
-            `;
+        <ul class="house-list">
+            ${houses.map(house => `
+                <li class="house-list-item ${selectedHouse === house.id ? 'selected' : ''}"
+                    id="house-list-item-${house.id}"
+                    onclick="selectHouse(${house.id})"
+                    ondblclick="editHouseName(${house.id})">
+                    <span id="house-name-${house.id}">${house.name}</span>
+                    <button class="remove-house-btn" onclick="event.stopPropagation(); removeHouse(${house.id});">×</button>
+                </li>
+            `).join('')}
+        </ul>
+    `;
 
             if (houses.length > 0) {
                 html += `<button type="button" class="btn btn-secondary" style="margin-top: 10px;" onclick="clearHouses()">Limpar</button>`;
@@ -402,7 +407,7 @@
             const section = document.getElementById('dataSection');
             const container = document.getElementById('housesData');
 
-            if (!selectedHouse) {
+            if (selectedHouse === null) {
                 section.style.display = 'block';
                 container.innerHTML = `
             <div class="empty-state">
@@ -412,25 +417,32 @@
         `;
                 return;
             }
+            const house = houses.find(h => h.id === selectedHouse);
+            if (!house) {
+                selectedHouse = null;
+                updateDataSection(); // Re-render with empty state
+                return;
+            }
+            const houseId = house.id;
+            const houseName = house.name;
 
-            const house = selectedHouse;
             section.style.display = 'block';
             container.innerHTML = `
         <div class="house-item-header">
-            <h2 class="house-title">Dados para ${house}</h2>
+            <h2 class="house-title">Dados para ${houseName}</h2>
         </div>
 
         <div class="toggles-section">
             <div class="toggle-container">
                 <label class="switch">
-                    <input type="checkbox" id="fridgeToggle_${house}" onchange="toggleFridge('${house}')">
+                    <input type="checkbox" id="fridgeToggle_${houseId}" onchange="toggleFridge(${houseId})">
                     <span class="slider"></span>
                 </label>
-                <label for="fridgeToggle_${house}">Carga de Geladeira</label>
+                <label for="fridgeToggle_${houseId}">Carga de Geladeira</label>
             </div>
-            <div id="fridgeOptions_${house}" style="display: none; margin-top: 10px;">
-                <label for="fridgeType_${house}">Tipo:</label>
-                <select id="fridgeType_${house}" onchange="setFridgeType('${house}')">
+            <div id="fridgeOptions_${houseId}" style="display: none; margin-top: 10px;">
+                <label for="fridgeType_${houseId}">Tipo:</label>
+                <select id="fridgeType_${houseId}" onchange="setFridgeType(${houseId})">
                     <option value="">Selecione...</option>
                     <option value="FRI">FRI</option>
                     <option value="FRO">FRO</option>
@@ -441,19 +453,19 @@
             </div>
         </div>
         <div class="data-grid">
-            ${dataTypes.map(type => renderDataField(type, house)).join('')}
+            ${dataTypes.map(type => renderDataField(type, houseId)).join('')}
         </div>
         <div class="special-data-section">
-            ${specialDataTypes.map(type => renderDataField(type, house)).join('')}
+            ${specialDataTypes.map(type => renderDataField(type, houseId)).join('')}
         </div>
     `;
-            syncToggles(house);
+            syncToggles(houseId);
         }
 
-        function renderDataField(type, house) {
-            const hasValue = houseData[house] && houseData[house][type.key] && houseData[house][type.key].length > 0;
-            const value = hasValue ? houseData[house][type.key][0] : '';
-            const inputId = `${type.key}_${house}`;
+        function renderDataField(type, houseId) {
+            const hasValue = houseData[houseId] && houseData[houseId][type.key] && houseData[houseId][type.key].length > 0;
+            const value = hasValue ? houseData[houseId][type.key][0] : '';
+            const inputId = `${type.key}_${houseId}`;
             const isDisabled = isServicosMode && type.key !== 'responsaveis';
 
             // Combobox para Entregas
@@ -464,7 +476,7 @@
                     <h3>${type.label}</h3>
                     <div class="data-entry-wrapper" id="wrapper-${inputId}">
                         <div class="data-entry">
-                            <select id="${inputId}" onchange="addDataEntry('${type.key}', '${house}')" ${isDisabled ? 'disabled' : ''}>
+                            <select id="${inputId}" onchange="addDataEntry('${type.key}', ${houseId})" ${isDisabled ? 'disabled' : ''}>
                                 <option value="">Selecione...</option>
                                 ${options.map(opt => `<option value="${opt}" ${value === opt ? 'selected' : ''}>${opt}</option>`).join('')}
                             </select>
@@ -479,13 +491,13 @@
                     <h3>${type.label}</h3>
                     <div class="data-entry-wrapper" id="wrapper-${inputId}">
                         ${hasValue ? `
-                            <div class="value-display" onclick="${!isDisabled ? `editDataEntry('${type.key}', '${house}')` : ''}">
+                            <div class="value-display" onclick="${!isDisabled ? `editDataEntry('${type.key}', ${houseId})` : ''}">
                                 <span>${value}</span>
                                 ${!isDisabled ? `<button class="edit-value-btn">✏️</button>` : ''}
                             </div>
                         ` : `
                             <div class="data-entry">
-                                <input type="text" id="${inputId}" placeholder="${type.placeholder}" onkeypress="handleDataEntry(event, '${type.key}', '${house}')" onpaste="handlePaste(event, '${type.key}', '${house}')" onblur="addDataEntry('${type.key}', '${house}')" ${isDisabled ? 'disabled' : ''}>
+                                <input type="text" id="${inputId}" placeholder="${type.placeholder}" onkeypress="handleDataEntry(event, '${type.key}', ${houseId})" onpaste="handlePaste(event, '${type.key}', ${houseId})" onblur="addDataEntry('${type.key}', ${houseId})" ${isDisabled ? 'disabled' : ''}>
                             </div>
                         `}
                     </div>
@@ -494,13 +506,13 @@
         }
 
         // Manipula entrada de dados com Enter
-        function handleDataEntry(event, dataType, house) {
+        function handleDataEntry(event, dataType, houseId) {
             if (event.key === 'Enter') {
-                addDataEntry(dataType, house);
+                addDataEntry(dataType, houseId);
             }
         }
 
-        function handlePaste(event, dataType, house) {
+        function handlePaste(event, dataType, houseId) {
             event.preventDefault();
             const pastedText = (event.clipboardData || window.clipboardData).getData('text');
             if (dataType === 'house') {
@@ -508,75 +520,82 @@
                 input.value += pastedText;
                 addHouses();
             } else {
-                const input = document.getElementById(`${dataType}_${house}`);
+                const input = document.getElementById(`${dataType}_${houseId}`);
                 input.value = pastedText;
-                addDataEntry(dataType, house);
+                addDataEntry(dataType, houseId);
             }
         }
 
-        function editDataEntry(dataType, house) {
-            const value = houseData[house][dataType][0];
-            const inputId = `${dataType}_${house}`;
+        function editDataEntry(dataType, houseId) {
+            const value = houseData[houseId][dataType][0];
+            const inputId = `${dataType}_${houseId}`;
             const wrapper = document.getElementById(`wrapper-${inputId}`);
 
             wrapper.innerHTML = `
                 <div class="data-entry">
-                    <input type="text" id="${inputId}" value="${value}" onblur="saveDataEntry('${dataType}', '${house}')" onkeypress="handleEditKey(event, '${dataType}', '${house}')">
+                    <input type="text" id="${inputId}" value="${value}" onblur="saveDataEntry('${dataType}', ${houseId})" onkeypress="handleEditKey(event, '${dataType}', ${houseId})">
                 </div>
             `;
             document.getElementById(inputId).focus();
         }
 
-        function handleEditKey(event, dataType, house) {
+        function handleEditKey(event, dataType, houseId) {
             if (event.key === 'Enter') {
-                saveDataEntry(dataType, house);
+                saveDataEntry(dataType, houseId);
             } else if (event.key === 'Escape') {
-                cancelEdit(dataType, house);
+                cancelEdit(dataType, houseId);
             }
         }
 
         // Adiciona entrada de dados (apenas um valor por input)
-        function addDataEntry(dataType, house) {
-            const input = document.getElementById(`${dataType}_${house}`);
+        function addDataEntry(dataType, houseId) {
+            const input = document.getElementById(`${dataType}_${houseId}`);
             const value = input.value.trim();
             if (value) {
-                houseData[house][dataType] = [value];
+                houseData[houseId][dataType] = [value];
                 updateDataSection();
             }
         }
 
-        function saveDataEntry(dataType, house) {
-            const input = document.getElementById(`${dataType}_${house}`);
+        function saveDataEntry(dataType, houseId) {
+            const input = document.getElementById(`${dataType}_${houseId}`);
             const value = input.value.trim();
             if (value) {
-                houseData[house][dataType] = [value];
+                houseData[houseId][dataType] = [value];
             } else {
-                houseData[house][dataType] = [];
+                houseData[houseId][dataType] = [];
             }
             updateDataSection();
         }
 
-        function cancelEdit(dataType, house) {
+        function cancelEdit(dataType, houseId) {
             updateDataSection();
         }
 
-        function syncToggles(house) {
-            const obs = houseData[house]?.observacoes || [];
+        function syncToggles(houseId) {
+            const obs = houseData[houseId]?.observacoes || [];
             const fridgeCodes = ["FRI", "FRO", "COL", "ERT", "CRT"];
 
             // Sincroniza Carga de Geladeira
             const fridgeObs = obs.find(o => fridgeCodes.includes(o));
             const isFridge = !!fridgeObs;
-            document.getElementById(`fridgeToggle_${house}`).checked = isFridge;
-            document.getElementById(`fridgeOptions_${house}`).style.display = isFridge ? 'block' : 'none';
+            document.getElementById(`fridgeToggle_${houseId}`).checked = isFridge;
+            document.getElementById(`fridgeOptions_${houseId}`).style.display = isFridge ? 'block' : 'none';
             if (isFridge) {
-                document.getElementById(`fridgeType_${house}`).value = fridgeObs;
+                document.getElementById(`fridgeType_${houseId}`).value = fridgeObs;
             }
 
             // Sincroniza outros toggles
-            document.getElementById(`servicosToggle_${house}`).checked = obs.includes('SERVICOS');
-            document.getElementById(`protestoToggle_${house}`).checked = obs.includes('CARTA PROTESTO');
-            document.getElementById(`ajustesToggle_${house}`).checked = obs.includes('AJUSTES');
+            // These elements don't seem to exist in the provided HTML, but keeping the logic
+            // in case they are dynamically added elsewhere.
+            const servicosToggle = document.getElementById(`servicosToggle_${houseId}`);
+            if(servicosToggle) servicosToggle.checked = obs.includes('SERVICOS');
+
+            const protestoToggle = document.getElementById(`protestoToggle_${houseId}`);
+            if(protestoToggle) protestoToggle.checked = obs.includes('CARTA PROTESTO');
+
+            const ajustesToggle = document.getElementById(`ajustesToggle_${houseId}`);
+            if(ajustesToggle) ajustesToggle.checked = obs.includes('AJUSTES');
         }
 
 
@@ -608,7 +627,7 @@
             const payload = {
                 spreadsheetId,
                 mawb,
-                houses,
+                houses: houses.map(h => h.name), // Envia apenas os nomes
                 isEditMode,
                 isServicosMode,
                 refs: [],
@@ -622,13 +641,15 @@
 
             // Coleta todos os dados de forma explícita para evitar erros
             houses.forEach(house => {
-                (houseData[house].refs || []).forEach(value => payload.refs.push({house, value}));
-                (houseData[house].consignees || []).forEach(value => payload.consignees.push({house, value}));
-                (houseData[house].entregas || []).forEach(value => payload.entregas.push({house, value}));
-                (houseData[house].dtas || []).forEach(value => payload.dtas.push({house, value}));
-                (houseData[house].previsoes || []).forEach(value => payload.previsoes.push({house, value}));
-                (houseData[house].responsaveis || []).forEach(value => payload.responsaveis.push({house, value}));
-                (houseData[house].observacoes || []).forEach(value => payload.observacoes.push({house, value}));
+                const houseId = house.id;
+                const houseName = house.name;
+                (houseData[houseId].refs || []).forEach(value => payload.refs.push({ house: houseName, value }));
+                (houseData[houseId].consignees || []).forEach(value => payload.consignees.push({ house: houseName, value }));
+                (houseData[houseId].entregas || []).forEach(value => payload.entregas.push({ house: houseName, value }));
+                (houseData[houseId].dtas || []).forEach(value => payload.dtas.push({ house: houseName, value }));
+                (houseData[houseId].previsoes || []).forEach(value => payload.previsoes.push({ house: houseName, value }));
+                (houseData[houseId].responsaveis || []).forEach(value => payload.responsaveis.push({ house: houseName, value }));
+                (houseData[houseId].observacoes || []).forEach(value => payload.observacoes.push({ house: houseName, value }));
             });
 
             // Mostra loading
@@ -781,10 +802,11 @@
 
                         // Adiciona o HOUSE à lista e ao estado
                         isEditMode = true; // Ativa o modo de edição
-                        houses = [data.house];
-                        houseData[data.house] = data;
+                        const newId = houseIdCounter++;
+                        houses = [{ id: newId, name: data.house }];
+                        houseData[newId] = data;
                         updateHousesDisplay();
-                        selectHouse(data.house);
+                        selectHouse(newId);
 
                         showAlert('Dados carregados. Você pode agora editar e salvar as informações.', 'success');
                     } else {
@@ -883,16 +905,17 @@
                             isServicosMode = true;
                         }
 
-                        // Create a unique name for the new entry
-                        const uniqueHouseName = `${data.house}-${servicosCounter++}`;
-                        houses.push(uniqueHouseName);
-                        houseData[uniqueHouseName] = JSON.parse(JSON.stringify(data)); // Deep copy
+                        // Create a new entry with a unique ID but the original name
+                        const newId = houseIdCounter++;
+                        const newHouse = { id: newId, name: data.house };
+                        houses.push(newHouse);
+                        houseData[newId] = JSON.parse(JSON.stringify(data)); // Deep copy
 
                         // Clear the 'responsaveis' field for the new entry
-                        houseData[uniqueHouseName].responsaveis = [];
-                        
+                        houseData[newId].responsaveis = [];
+
                         updateHousesDisplay();
-                        selectHouse(uniqueHouseName);
+                        selectHouse(newId);
 
                         showAlert('Dados carregados. Adicione um novo responsável e salve.', 'success');
                     } else {
