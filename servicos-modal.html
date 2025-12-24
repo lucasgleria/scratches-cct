@@ -1,0 +1,17 @@
+<div id="servicos-modal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>Selecionar HOUSE para Serviços</h2>
+            <span class="close-button" onclick="closeServicosModal()">&times;</span>
+        </div>
+        <div class="modal-body">
+            <input type="text" id="servicos-house-search" onkeyup="filterServicosHouses()" placeholder="Buscar HOUSE...">
+            <ul id="servicos-modal-house-list" class="house-list">
+                <!-- A lista de HOUSEs será preenchida dinamicamente -->
+            </ul>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeServicosModal()">Fechar</button>
+        </div>
+    </div>
+</div>
