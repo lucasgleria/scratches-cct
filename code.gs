@@ -173,14 +173,22 @@ function getHousesFromSpreadsheet(spreadsheetId) {
 
     const ss = SpreadsheetApp.openById(spreadsheetId);
     const sheets = ss.getSheets();
-    if (sheets.length < 3) return _asError('A planilha selecionada não possui 3 abas.');
-    const ws = sheets[2]; // Terceira aba
+    const allHouses = new Set();
 
-    const lastRow = ws.getLastRow();
-    if (lastRow < 2) return _asOk([]); // Nenhuma linha de dados
+    for (const sheet of sheets) {
+        const lastRow = sheet.getLastRow();
+        if (lastRow < 2) continue; // Nenhuma linha de dados, pula para a próxima aba
 
-    const houseColumn = ws.getRange(2, 2, lastRow - 1, 1).getValues();
-    const uniqueHouses = [...new Set(houseColumn.map(row => _normHouse(row[0])).filter(Boolean))];
+        const houseColumn = sheet.getRange(2, 2, lastRow - 1, 1).getValues();
+        houseColumn.forEach(row => {
+            const house = _normHouse(row[0]);
+            if (house) {
+                allHouses.add(house);
+            }
+        });
+    }
+
+    const uniqueHouses = [...allHouses];
     uniqueHouses.sort();
 
     return _asOk(uniqueHouses);
@@ -550,5 +558,57 @@ function saveEntries(payload) {
 
   } catch (err) {
     return _asError('Falha ao salvar os dados.', err && err.message ? err.message : String(err));
+  }
+}
+
+/** Duplica um HOUSE para a funcionalidade "Serviços". */
+function duplicateHouseForServicos(spreadsheetId, house, responsavel) {
+  try {
+    if (!spreadsheetId) return _asError('ID da planilha não fornecido.');
+    if (!house) return _asError('Código HOUSE não fornecido.');
+    if (!responsavel) return _asError('Responsável não fornecido.');
+
+    const ss = SpreadsheetApp.openById(spreadsheetId);
+    const sheets = ss.getSheets();
+    let ws = null;
+    let occurrences = [];
+
+    // Encontra a aba e a linha do HOUSE
+    for (let i = 0; i < sheets.length; i++) {
+        const sheet = sheets[i];
+        const columnToSearch = sheet.getRange("B:B");
+        const finder = columnToSearch.createTextFinder(_normHouse(house)).matchEntireCell(true);
+        const found = finder.findAll().reverse();
+        if (found.length > 0) {
+            ws = sheet;
+            occurrences = found;
+            break;
+        }
+    }
+
+    if (!ws || occurrences.length === 0) return _asError(`HOUSE "${house}" não encontrado em nenhuma aba.`);
+
+    const originalRowIndex = occurrences[0].getRow();
+    const originalRowData = ws.getRange(originalRowIndex, 1, 1, 9).getValues()[0];
+
+    // Adiciona o responsável às observações
+    const COLS = { OBS: 8 };
+    let observacoes = _norm(originalRowData[COLS.OBS]).split(MULTI_JOIN).filter(Boolean);
+    observacoes.push(`SERVIÇO: ${responsavel}`);
+    originalRowData[COLS.OBS] = observacoes.join(MULTI_JOIN);
+
+    // Insere a nova linha no final da planilha
+    const lastRow = ws.getLastRow();
+    ws.insertRowAfter(lastRow);
+    const newRowRange = ws.getRange(lastRow + 1, 1, 1, 9);
+    newRowRange.setValues([originalRowData]);
+
+    // Aplica a cor de fundo vermelha clara
+    newRowRange.setBackground('#f4cccc'); // Vermelho claro
+
+    return _asOk({ duplicated: true, rowIndex: lastRow + 1 });
+
+  } catch (err) {
+    return _asError('Falha ao duplicar o HOUSE para serviços.', err.message);
   }
 }

@@ -4,6 +4,7 @@
         let houseData = {};
         let selectedHouse = null;
         let isEditMode = false;
+        let isServicosMode = false;
 
         // Tipos de dados disponíveis
         const dataTypes = [
@@ -399,6 +400,13 @@
         function updateDataSection() {
             const section = document.getElementById('dataSection');
             const container = document.getElementById('housesData');
+            const servicosResponsavelSection = document.getElementById('servicosResponsavelSection');
+
+            if (isServicosMode) {
+                servicosResponsavelSection.style.display = 'block';
+            } else {
+                servicosResponsavelSection.style.display = 'none';
+            }
 
             if (!selectedHouse) {
                 section.style.display = 'block';
@@ -475,6 +483,7 @@
             const hasValue = houseData[house] && houseData[house][type.key] && houseData[house][type.key].length > 0;
             const value = hasValue ? houseData[house][type.key][0] : '';
             const inputId = `${type.key}_${house}`;
+            const isReadOnly = isServicosMode;
 
             // Combobox para Entregas
             if (type.key === 'entregas') {
@@ -484,7 +493,7 @@
                     <h3>${type.label}</h3>
                     <div class="data-entry-wrapper" id="wrapper-${inputId}">
                         <div class="data-entry">
-                            <select id="${inputId}" onchange="addDataEntry('${type.key}', '${house}')">
+                            <select id="${inputId}" onchange="addDataEntry('${type.key}', '${house}')" ${isReadOnly ? 'disabled' : ''}>
                                 <option value="">Selecione...</option>
                                 ${options.map(opt => `<option value="${opt}" ${value === opt ? 'selected' : ''}>${opt}</option>`).join('')}
                             </select>
@@ -499,13 +508,13 @@
                     <h3>${type.label}</h3>
                     <div class="data-entry-wrapper" id="wrapper-${inputId}">
                         ${hasValue ? `
-                            <div class="value-display" onclick="editDataEntry('${type.key}', '${house}')">
+                            <div class="value-display" ${!isReadOnly ? `onclick="editDataEntry('${type.key}', '${house}')"` : ''}>
                                 <span>${value}</span>
-                                <button class="edit-value-btn">✏️</button>
+                                ${!isReadOnly ? `<button class="edit-value-btn">✏️</button>` : ''}
                             </div>
                         ` : `
                             <div class="data-entry">
-                                <input type="text" id="${inputId}" placeholder="${type.placeholder}" onkeypress="handleDataEntry(event, '${type.key}', '${house}')" onpaste="handlePaste(event, '${type.key}', '${house}')" onblur="addDataEntry('${type.key}', '${house}')">
+                                <input type="text" id="${inputId}" placeholder="${type.placeholder}" onkeypress="handleDataEntry(event, '${type.key}', '${house}')" onpaste="handlePaste(event, '${type.key}', '${house}')" onblur="addDataEntry('${type.key}', '${house}')" ${isReadOnly ? 'readonly' : ''}>
                             </div>
                         `}
                     </div>
@@ -605,6 +614,33 @@
             const spreadsheetId = document.getElementById('spreadsheet').value;
             const mawb = document.getElementById('mawb').value.trim();
 
+            if (isServicosMode) {
+                const responsavel = document.getElementById('servicosResponsavel').value.trim();
+                if (!responsavel) {
+                    showAlert('Por favor, insira o nome do responsável pelo serviço.', 'error');
+                    return;
+                }
+                const house = houses[0]; // Apenas um house no modo de serviços
+
+                document.getElementById('loading').style.display = 'block';
+                google.script.run
+                    .withSuccessHandler(function(result) {
+                        document.getElementById('loading').style.display = 'none';
+                        if (result.ok) {
+                            showAlert('HOUSE duplicado para serviços com sucesso!', 'success');
+                            resetForm();
+                        } else {
+                            showAlert(`Erro ao duplicar HOUSE: ${result.message}`, 'error');
+                        }
+                    })
+                    .withFailureHandler(function(error) {
+                        document.getElementById('loading').style.display = 'none';
+                        showAlert(`Erro ao duplicar HOUSE: ${error.message}`, 'error');
+                    })
+                    .duplicateHouseForServicos(spreadsheetId, house, responsavel);
+                return;
+            }
+
             // Validações
             if (!spreadsheetId) {
                 showAlert('Selecione uma planilha', 'error');
@@ -693,6 +729,7 @@
             houseData = {};
             selectedHouse = null;
             isEditMode = false; // Reseta o modo de edição
+            isServicosMode = false; // Reseta o modo de serviços
             updateHousesDisplay();
             updateDataSection();
             document.getElementById('dataSection').style.display = 'none';
@@ -805,6 +842,98 @@
                         selectHouse(data.house);
 
                         showAlert('Dados carregados. Você pode agora editar e salvar as informações.', 'success');
+                    } else {
+                        showAlert(`Erro ao carregar dados do HOUSE: ${result.message} - Detalhes: ${result.detail}`, 'error');
+                    }
+                })
+                .withFailureHandler(function(error) {
+                    showAlert(`Erro fatal ao carregar dados do HOUSE: ${error.message}`, 'error');
+                })
+                .getDataForHouse(spreadsheetId, house);
+        }
+
+        // Funções do Modal de Serviços
+        function openServicosModal() {
+            const spreadsheetId = document.getElementById('spreadsheet').value;
+            if (!spreadsheetId) {
+                showAlert('Por favor, selecione uma planilha primeiro.', 'error');
+                return;
+            }
+            const modal = document.getElementById('servicos-modal');
+            const houseList = document.getElementById('servicos-modal-house-list');
+            houseList.innerHTML = '<li>Carregando...</li>';
+            modal.style.display = 'block';
+
+            google.script.run
+                .withSuccessHandler(function(result) {
+                    if (result.ok) {
+                        houseList.innerHTML = '';
+                        if (result.payload.length === 0) {
+                            houseList.innerHTML = '<li>Nenhum HOUSE encontrado.</li>';
+                            return;
+                        }
+                        result.payload.forEach(house => {
+                            const li = document.createElement('li');
+                            li.textContent = house;
+                            li.className = 'house-list-item';
+                            li.onclick = () => selectHouseForServicos(house);
+                            houseList.appendChild(li);
+                        });
+                    } else {
+                        showAlert('Erro ao buscar HOUSEs: ' + result.message, 'error');
+                        houseList.innerHTML = '<li>Erro ao carregar.</li>';
+                    }
+                })
+                .withFailureHandler(function(error) {
+                    showAlert('Erro ao buscar HOUSEs: ' + error.message, 'error');
+                    houseList.innerHTML = '<li>Erro ao carregar.</li>';
+                })
+                .getHousesFromSpreadsheet(spreadsheetId);
+        }
+
+        function closeServicosModal() {
+            document.getElementById('servicos-modal').style.display = 'none';
+        }
+
+        function filterServicosHouses() {
+            const input = document.getElementById('servicos-house-search');
+            const filter = input.value.toUpperCase();
+            const ul = document.getElementById('servicos-modal-house-list');
+            const li = ul.getElementsByTagName('li');
+
+            for (let i = 0; i < li.length; i++) {
+                const txtValue = li[i].textContent || li[i].innerText;
+                if (txtValue.toUpperCase().indexOf(filter) > -1) {
+                    li[i].style.display = '';
+                } else {
+                    li[i].style.display = 'none';
+                }
+            }
+        }
+
+        function selectHouseForServicos(house) {
+            const spreadsheetId = document.getElementById('spreadsheet').value;
+            showAlert('Carregando dados para o HOUSE: ' + house, 'info');
+            closeServicosModal();
+
+            google.script.run
+                .withSuccessHandler(function(result) {
+                    if (result.ok) {
+                        const data = result.payload;
+
+                        // Limpa o formulário antes de preencher
+                        resetForm();
+
+                        document.getElementById('mawb').value = data.mawb;
+
+                        // Ativa o modo de serviços
+                        isServicosMode = true;
+                        houses = [data.house];
+                        houseData[data.house] = data;
+                        updateHousesDisplay();
+                        selectHouse(data.house);
+
+                        showAlert('Dados carregados. Insira o responsável e salve.', 'success');
                     } else {
                         showAlert(`Erro ao carregar dados do HOUSE: ${result.message} - Detalhes: ${result.detail}`, 'error');
                     }
