@@ -1,0 +1,259 @@
+<script>
+// Carrega lista de planilhas disponíveis
+function loadSpreadsheets() {
+    const viewName = document.querySelector('.container').dataset.viewName;
+    google.script.run
+        .withSuccessHandler(function(result) {
+            if (result.ok) {
+                const select = document.getElementById('spreadsheet');
+                // Limpa as opções existentes para evitar duplicatas ao trocar de view
+                select.innerHTML = '<option value="">Selecione uma planilha...</option>';
+                result.payload.forEach(sheet => {
+                    const option = document.createElement('option');
+                    option.value = sheet.id;
+                    option.textContent = sheet.name;
+                    select.appendChild(option);
+                });
+            } else {
+                showAlert('Erro ao carregar planilhas: ' + result.message, 'error');
+            }
+        })
+        .withFailureHandler(function(error) {
+            showAlert('Erro ao carregar planilhas: ' + error.message, 'error');
+        })
+        .getSpreadsheets(viewName);
+}
+
+async function addHouses() {
+    const input = document.getElementById('newHouses');
+    const houseValues = input.value.trim().split('\n').filter(h => h.trim() !== '');
+    const errorDiv = document.getElementById('houseError');
+    const spreadsheetId = document.getElementById('spreadsheet').value;
+
+    if (!spreadsheetId) {
+        showAlert('Por favor, selecione uma planilha primeiro.', 'error');
+        return;
+    }
+
+    document.getElementById('loading').style.display = 'block';
+
+    let warnings = [];
+    let errors = [];
+    let housesToAdd = [];
+    const potentialHouses = new Set();
+
+    for (const originalValue of houseValues) {
+        let house = originalValue.trim().toUpperCase();
+
+        if (house.length > 11) {
+            const originalForWarning = house;
+            house = house.substring(house.length - 11);
+            warnings.push(`Original: "${originalForWarning}", cortado para: "${house}"`);
+        }
+
+        const validation = validateHOUSE(house);
+        if (!validation.valid) {
+            errors.push(`"${originalValue}" inválido: ${validation.message}`);
+            continue;
+        }
+
+        if (houses.some(h => h.name === house) || potentialHouses.has(house)) {
+            errors.push(`"${originalValue}" resulta em um HOUSE duplicado na lista de adição.`);
+            continue;
+        }
+
+        try {
+            const result = await new Promise((resolve, reject) => {
+                google.script.run
+                    .withSuccessHandler(resolve)
+                    .withFailureHandler(reject)
+                    .checkHouseExists(spreadsheetId, house);
+            });
+
+            if (result.ok && result.payload) {
+                confirmEdit(house);
+            } else if (result.ok && !result.payload) {
+                potentialHouses.add(house);
+                housesToAdd.push(house);
+            } else {
+                errors.push(result.message || 'Erro desconhecido ao verificar HOUSE.');
+            }
+        } catch (error) {
+            errors.push(`Falha na comunicação ao verificar HOUSE "${house}".`);
+        }
+    }
+
+    document.getElementById('loading').style.display = 'none';
+    input.value = '';
+
+    if (errors.length > 0) {
+        showFieldError('newHouses', 'houseError', errors.join('<br>'));
+    } else if (warnings.length > 0) {
+        errorDiv.innerHTML = `<strong>Avisos:</strong><br>${warnings.join('<br>')}`;
+        errorDiv.style.color = '#666';
+        errorDiv.style.display = 'block';
+        input.classList.remove('input-error');
+        input.classList.add('input-valid');
+    } else {
+        clearFieldError('newHouses', 'houseError');
+    }
+
+    if (housesToAdd.length > 0) {
+        housesToAdd.forEach(houseName => {
+            if (!houses.some(h => h.name === houseName)) {
+                const newId = houseIdCounter++;
+                houses.push({ id: newId, name: houseName });
+                houseData[newId] = {};
+                dataTypes.forEach(type => houseData[newId][type.key] = []);
+                specialDataTypes.forEach(type => houseData[newId][type.key] = []);
+            }
+        });
+        updateHousesDisplay();
+        if (housesToAdd.length === 1) {
+            selectHouse(houses[houses.length - 1].id);
+        }
+    }
+}
+
+// Salva os dados
+async function saveData() {
+    const spreadsheetId = document.getElementById('spreadsheet').value;
+    const mawb = document.getElementById('mawb').value.trim();
+
+    // Validações
+    if (!spreadsheetId) {
+        showAlert('Selecione uma planilha', 'error');
+        return;
+    }
+
+    // Validação do MAWB
+    const mawbValidation = validateMAWB(mawb);
+    if (!mawbValidation.valid) {
+        showFieldError('mawb', 'mawbError', mawbValidation.message);
+        showAlert('Corrija os erros antes de salvar', 'error');
+        return;
+    }
+
+    if (houses.length === 0) {
+        showAlert('Adicione pelo menos um HOUSE', 'error');
+        return;
+    }
+
+    // Prepara payload
+    const payload = {
+        spreadsheetId,
+        mawb,
+        houses: houses.map(h => h.name), // Envia apenas os nomes
+        isEditMode,
+        isServicosMode,
+        refs: [],
+        consignees: [],
+        entregas: [],
+        dtas: [],
+        previsoes: [],
+        responsaveis: [],
+        observacoes: []
+    };
+
+    // Coleta todos os dados de forma explícita para evitar erros
+    houses.forEach(house => {
+        const houseId = house.id;
+        const houseName = house.name;
+        (houseData[houseId].refs || []).forEach(value => payload.refs.push({ house: houseName, value }));
+        (houseData[houseId].consignees || []).forEach(value => payload.consignees.push({ house: houseName, value }));
+        (houseData[houseId].entregas || []).forEach(value => payload.entregas.push({ house: houseName, value }));
+        (houseData[houseId].dtas || []).forEach(value => payload.dtas.push({ house: houseName, value }));
+        (houseData[houseId].previsoes || []).forEach(value => payload.previsoes.push({ house: houseName, value }));
+        (houseData[houseId].responsaveis || []).forEach(value => payload.responsaveis.push({ house: houseName, value }));
+        (houseData[houseId].observacoes || []).forEach(value => payload.observacoes.push({ house: houseName, value }));
+    });
+
+    // Mostra loading
+    document.getElementById('loading').style.display = 'block';
+
+    try {
+        // Chama a função do Google Apps Script
+        const result = await google.script.run
+            .withSuccessHandler(handleSaveSuccess)
+            .withFailureHandler(handleSaveError)
+            .saveEntries(payload);
+
+    } catch (error) {
+        handleSaveError(error);
+    }
+}
+
+function selectHouseForEditing(house) {
+    const spreadsheetId = document.getElementById('spreadsheet').value;
+    showAlert('Carregando dados para o HOUSE: ' + house, 'success');
+    closeEditorModal();
+
+    google.script.run
+        .withSuccessHandler(function(result) {
+            if (result.ok) {
+                const data = result.payload;
+
+                // Limpa o formulário antes de preencher
+                resetForm();
+
+                document.getElementById('mawb').value = data.mawb;
+
+                // Adiciona o HOUSE à lista e ao estado
+                isEditMode = true; // Ativa o modo de edição
+                const newId = houseIdCounter++;
+                houses = [{ id: newId, name: data.house }];
+                houseData[newId] = data;
+                updateHousesDisplay();
+                selectHouse(newId);
+
+                showAlert('Dados carregados. Você pode agora editar e salvar as informações.', 'success');
+            } else {
+                showAlert(`Erro ao carregar dados do HOUSE: ${result.message} - Detalhes: ${result.detail}`, 'error');
+            }
+        })
+        .withFailureHandler(function(error) {
+            showAlert(`Erro fatal ao carregar dados do HOUSE: ${error.message}`, 'error');
+        })
+        .getDataForHouse(spreadsheetId, house);
+}
+
+function selectHouseForServicos(house) {
+    const spreadsheetId = document.getElementById('spreadsheet').value;
+    showAlert('Carregando dados para o HOUSE: ' + house, 'success');
+    closeServicosModal();
+
+    google.script.run
+        .withSuccessHandler(function(result) {
+            if (result.ok) {
+                const data = result.payload;
+
+                if (!isServicosMode) {
+                    // First time selecting a HOUSE in Serviços mode
+                    resetForm();
+                    document.getElementById('mawb').value = data.mawb;
+                    isServicosMode = true;
+                }
+
+                // Create a new entry with a unique ID but the original name
+                const newId = houseIdCounter++;
+                const newHouse = { id: newId, name: data.house };
+                houses.push(newHouse);
+                houseData[newId] = JSON.parse(JSON.stringify(data)); // Deep copy
+
+                // Clear the 'responsaveis' field for the new entry
+                houseData[newId].responsaveis = [];
+
+                updateHousesDisplay();
+                selectHouse(newId);
+
+                showAlert('Dados carregados. Adicione um novo responsável e salve.', 'success');
+            } else {
+                showAlert(`Erro ao carregar dados do HOUSE: ${result.message} - Detalhes: ${result.detail}`, 'error');
+            }
+        })
+        .withFailureHandler(function(error) {
+            showAlert(`Erro fatal ao carregar dados do HOUSE: ${error.message}`, 'error');
+        })
+        .getDataForHouse(spreadsheetId, house);
+}
+</script>

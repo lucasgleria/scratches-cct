@@ -1,0 +1,439 @@
+<script>
+// Validação em tempo real para MAWB
+document.getElementById('mawb').addEventListener('input', function(e) {
+    const validation = validateMAWB(e.target.value);
+    if (!validation.valid && e.target.value.trim()) {
+        showFieldError('mawb', 'mawbError', validation.message);
+    } else if (validation.valid) {
+        clearFieldError('mawb', 'mawbError');
+    } else {
+        // Campo vazio - limpa erro mas não mostra válido
+        const field = document.getElementById('mawb');
+        const errorDiv = document.getElementById('mawbError');
+        field.classList.remove('input-error', 'input-valid');
+        errorDiv.style.display = 'none';
+    }
+});
+
+function clearHouses() {
+    houses = [];
+    houseData = {};
+    selectedHouse = null;
+    isEditMode = false; // Garante que o modo de edição seja desativado
+    updateHousesDisplay();
+    updateDataSection();
+}
+
+function toggleFridge(houseId) {
+    const isChecked = document.getElementById(`fridgeToggle_${houseId}`).checked;
+    const fridgeCodes = ["FRI", "FRO", "COL", "ERT", "CRT"];
+    let obs = houseData[houseId]?.observacoes || [];
+
+    // Remove all existing fridge codes to avoid duplicates or conflicts
+    obs = obs.filter(o => !fridgeCodes.includes(o));
+
+    if (isChecked) {
+        obs.push('FRI'); // Add default fridge code
+    }
+
+    houseData[houseId].observacoes = obs;
+    updateDataSection();
+}
+
+function setFridgeType(houseId) {
+    const value = document.getElementById(`fridgeType_${houseId}`).value;
+    const fridgeCodes = ["FRI", "FRO", "COL", "ERT", "CRT"];
+    let obs = houseData[houseId]?.observacoes || [];
+
+    // Remove all existing fridge codes
+    obs = obs.filter(o => !fridgeCodes.includes(o));
+
+    if (value) {
+        obs.push(value); // Add the selected fridge code
+    }
+
+    houseData[houseId].observacoes = obs;
+    updateDataSection();
+}
+
+function toggleSimpleObservation(houseId, value, toggleId) {
+    const isChecked = document.getElementById(toggleId).checked;
+    let obs = houseData[houseId]?.observacoes || [];
+    const index = obs.indexOf(value);
+
+    if (isChecked) {
+        if (index === -1) {
+            obs.push(value);
+        }
+    } else {
+        if (index > -1) {
+            obs.splice(index, 1);
+        }
+    }
+    houseData[houseId].observacoes = obs;
+    updateDataSection();
+}
+
+// Adiciona um novo HOUSE
+function addHouse() {
+    const input = document.getElementById('newHouses');
+    addHouses();
+}
+
+function confirmEdit(house) {
+    const message = `O HOUSE "${house}" já existe na planilha. Deseja carregar os dados existentes para edição?`;
+    if (confirm(message)) {
+        selectHouseForEditing(house);
+    }
+}
+
+// Remove um HOUSE
+function removeHouse(houseId) {
+    const index = houses.findIndex(h => h.id === houseId);
+    if (index > -1) {
+        houses.splice(index, 1);
+        delete houseData[houseId];
+        if (selectedHouse === houseId) {
+            selectedHouse = null;
+        }
+        updateHousesDisplay();
+        updateDataSection();
+    }
+}
+
+function editHouseName(houseId) {
+    const house = houses.find(h => h.id === houseId);
+    if (!house) return;
+
+    const span = document.getElementById(`house-name-${houseId}`);
+    if (span) {
+        span.innerHTML = `<input type="text" id="edit-house-${houseId}" value="${house.name}"
+                             onblur="saveHouseName(${houseId})"
+                             onkeypress="handleHouseNameKey(event, ${houseId})">`;
+        document.getElementById(`edit-house-${houseId}`).focus();
+    }
+}
+
+function handleHouseNameKey(event, houseId) {
+    if (event.key === 'Enter') {
+        saveHouseName(houseId);
+    } else if (event.key === 'Escape') {
+        updateHousesDisplay(); // Revert changes
+    }
+}
+
+function saveHouseName(houseId) {
+    const input = document.getElementById(`edit-house-${houseId}`);
+    if (!input) {
+        updateHousesDisplay();
+        return;
+    }
+    const newName = input.value.trim().toUpperCase();
+    const house = houses.find(h => h.id === houseId);
+
+    if (!house) return; // Should not happen
+
+    if (newName === house.name) {
+        updateHousesDisplay();
+        return;
+    }
+
+    const validation = validateHOUSE(newName);
+    if (!validation.valid) {
+        showAlert(`Nome de HOUSE inválido: ${validation.message}`, 'error');
+        updateHousesDisplay();
+        return;
+    }
+
+    if (houses.some(h => h.name === newName && h.id !== houseId)) {
+        showAlert(`HOUSE "${newName}" já existe.`, 'error');
+        updateHousesDisplay();
+        return;
+    }
+
+    // Update state
+    house.name = newName;
+    updateHousesDisplay();
+}
+
+// Seleciona um HOUSE para edição
+function selectHouse(houseId) {
+    // Se já estiver selecionado, não faz nada para permitir a interação (ex: double-click)
+    if (selectedHouse === houseId) return;
+
+    // Remove a classe 'selected' do item anteriormente selecionado
+    if (selectedHouse !== null) {
+        const oldItem = document.getElementById(`house-list-item-${selectedHouse}`);
+        if (oldItem) {
+            oldItem.classList.remove('selected');
+        }
+    }
+
+    selectedHouse = houseId;
+
+    // Adiciona a classe 'selected' ao novo item selecionado
+    const newItem = document.getElementById(`house-list-item-${houseId}`);
+    if (newItem) {
+        newItem.classList.add('selected');
+    }
+
+    updateDataSection();
+}
+
+// Manipula entrada de dados com Enter
+function handleDataEntry(event, dataType, houseId) {
+    if (event.key === 'Enter') {
+        addDataEntry(dataType, houseId);
+    }
+}
+
+function handlePaste(event, dataType, houseId) {
+    event.preventDefault();
+    const pastedText = (event.clipboardData || window.clipboardData).getData('text');
+    if (dataType === 'house') {
+        const input = document.getElementById('newHouses');
+        input.value += pastedText;
+        addHouses();
+    } else {
+        const input = document.getElementById(`${dataType}_${houseId}`);
+        input.value = pastedText;
+        addDataEntry(dataType, houseId);
+    }
+}
+
+function editDataEntry(dataType, houseId) {
+    const value = houseData[houseId][dataType][0];
+    const inputId = `${dataType}_${houseId}`;
+    const wrapper = document.getElementById(`wrapper-${inputId}`);
+
+    wrapper.innerHTML = `
+        <div class="data-entry">
+            <input type="text" id="${inputId}" value="${value}" onblur="saveDataEntry('${dataType}', ${houseId})" onkeypress="handleEditKey(event, '${dataType}', ${houseId})">
+        </div>
+    `;
+    document.getElementById(inputId).focus();
+}
+
+function handleEditKey(event, dataType, houseId) {
+    if (event.key === 'Enter') {
+        saveDataEntry(dataType, houseId);
+    } else if (event.key === 'Escape') {
+        cancelEdit(dataType, houseId);
+    }
+}
+
+// Adiciona entrada de dados (apenas um valor por input)
+function addDataEntry(dataType, houseId) {
+    const input = document.getElementById(`${dataType}_${houseId}`);
+    const value = input.value.trim();
+    if (value) {
+        houseData[houseId][dataType] = [value];
+        updateDataSection();
+    }
+}
+
+function saveDataEntry(dataType, houseId) {
+    const input = document.getElementById(`${dataType}_${houseId}`);
+    const value = input.value.trim();
+    if (value) {
+        houseData[houseId][dataType] = [value];
+    } else {
+        houseData[houseId][dataType] = [];
+    }
+    updateDataSection();
+}
+
+function cancelEdit(dataType, houseId) {
+    updateDataSection();
+}
+
+function syncToggles(houseId) {
+    const obs = houseData[houseId]?.observacoes || [];
+    const fridgeCodes = ["FRI", "FRO", "COL", "ERT", "CRT"];
+
+    // Sincroniza Carga de Geladeira
+    const fridgeObs = obs.find(o => fridgeCodes.includes(o));
+    const isFridge = !!fridgeObs;
+    document.getElementById(`fridgeToggle_${houseId}`).checked = isFridge;
+    document.getElementById(`fridgeOptions_${houseId}`).style.display = isFridge ? 'block' : 'none';
+    if (isFridge) {
+        document.getElementById(`fridgeType_${houseId}`).value = fridgeObs;
+    }
+
+    // Sincroniza outros toggles
+    // These elements don't seem to exist in the provided HTML, but keeping the logic
+    // in case they are dynamically added elsewhere.
+    const servicosToggle = document.getElementById(`servicosToggle_${houseId}`);
+    if(servicosToggle) servicosToggle.checked = obs.includes('SERVICOS');
+
+    const protestoToggle = document.getElementById(`protestoToggle_${houseId}`);
+    if(protestoToggle) protestoToggle.checked = obs.includes('CARTA PROTESTO');
+
+    const ajustesToggle = document.getElementById(`ajustesToggle_${houseId}`);
+    if(ajustesToggle) ajustesToggle.checked = obs.includes('AJUSTES');
+}
+
+// Manipula sucesso no salvamento
+function handleSaveSuccess(result) {
+    document.getElementById('loading').style.display = 'none';
+
+    if (result.ok) {
+        const { inserted, updated, removed_duplicates } = result.payload;
+        showAlert(`Dados salvos com sucesso! Inseridos: ${inserted}, Atualizados: ${updated}, Duplicatas removidas: ${removed_duplicates}`, 'success');
+
+        // Limpa o formulário
+        resetForm();
+    } else {
+        showAlert(`Erro: ${result.message}${result.detail ? ' - ' + result.detail : ''}`, 'error');
+    }
+}
+
+// Manipula erro no salvamento
+function handleSaveError(error) {
+    document.getElementById('loading').style.display = 'none';
+    showAlert(`Erro ao salvar: ${error.message || error}`, 'error');
+}
+
+// Reseta o formulário
+function resetForm() {
+    document.getElementById('mawb').value = '';
+    houses = [];
+    houseData = {};
+    selectedHouse = null;
+    isEditMode = false;
+    isServicosMode = false;
+    updateHousesDisplay();
+    updateDataSection();
+    document.getElementById('dataSection').style.display = 'none';
+}
+
+// Funções do Modo Editor
+function openEditorMode() {
+    const spreadsheetId = document.getElementById('spreadsheet').value;
+    if (!spreadsheetId) {
+        showAlert('Por favor, selecione uma planilha primeiro.', 'error');
+        return;
+    }
+    const modal = document.getElementById('editor-modal');
+    const houseList = document.getElementById('modal-house-list');
+    houseList.innerHTML = '<li>Carregando...</li>';
+    modal.style.display = 'block';
+
+    google.script.run
+        .withSuccessHandler(function(result) {
+            if (result.ok) {
+                houseList.innerHTML = '';
+                if (result.payload.length === 0) {
+                    houseList.innerHTML = '<li>Nenhum HOUSE encontrado.</li>';
+                    return;
+                }
+                result.payload.forEach(house => {
+                    const li = document.createElement('li');
+                    li.textContent = house;
+                    li.className = 'house-list-item';
+                    li.onclick = () => selectHouseForEditing(house);
+                    houseList.appendChild(li);
+                });
+            } else {
+                showAlert('Erro ao buscar HOUSEs: ' + result.message, 'error');
+                houseList.innerHTML = '<li>Erro ao carregar.</li>';
+            }
+        })
+        .withFailureHandler(function(error) {
+            showAlert('Erro ao buscar HOUSEs: ' + error.message, 'error');
+            houseList.innerHTML = '<li>Erro ao carregar.</li>';
+        })
+        .getHousesFromSpreadsheet(spreadsheetId);
+}
+
+function closeEditorModal() {
+    document.getElementById('editor-modal').style.display = 'none';
+}
+
+function filterHouses() {
+    const input = document.getElementById('house-search');
+    const filter = input.value.toUpperCase();
+    const ul = document.getElementById('modal-house-list');
+    const li = ul.getElementsByTagName('li');
+
+    for (let i = 0; i < li.length; i++) {
+        const txtValue = li[i].textContent || li[i].innerText;
+        if (txtValue.toUpperCase().indexOf(filter) > -1) {
+            li[i].style.display = '';
+        } else {
+            li[i].style.display = 'none';
+        }
+    }
+}
+
+// Funções do Modal de Serviços
+document.getElementById('servicosToggle').addEventListener('change', function(event) {
+    if (event.target.checked) {
+        openServicosModal();
+    } else {
+        // Aqui você pode adicionar lógica para reverter o estado, se necessário
+    }
+});
+
+function openServicosModal() {
+    const spreadsheetId = document.getElementById('spreadsheet').value;
+    if (!spreadsheetId) {
+        showAlert('Por favor, selecione uma planilha primeiro.', 'error');
+        document.getElementById('servicosToggle').checked = false;
+        return;
+    }
+    const modal = document.getElementById('servicos-modal');
+    const houseList = document.getElementById('servicos-modal-house-list');
+    houseList.innerHTML = '<li>Carregando...</li>';
+    modal.style.display = 'block';
+
+    google.script.run
+        .withSuccessHandler(function(result) {
+            if (result.ok) {
+                houseList.innerHTML = '';
+                if (result.payload.length === 0) {
+                    houseList.innerHTML = '<li>Nenhum HOUSE encontrado.</li>';
+                    return;
+                }
+                result.payload.forEach(house => {
+                    const li = document.createElement('li');
+                    li.textContent = house;
+                    li.className = 'house-list-item';
+                    li.onclick = () => selectHouseForServicos(house);
+                    houseList.appendChild(li);
+                });
+            } else {
+                showAlert('Erro ao buscar HOUSEs: ' + result.message, 'error');
+                houseList.innerHTML = '<li>Erro ao carregar.</li>';
+            }
+        })
+        .withFailureHandler(function(error) {
+            showAlert('Erro ao buscar HOUSEs: ' + error.message, 'error');
+            houseList.innerHTML = '<li>Erro ao carregar.</li>';
+        })
+        .getAllHouses();
+}
+
+function closeServicosModal() {
+    document.getElementById('servicos-modal').style.display = 'none';
+    document.getElementById('servicosToggle').checked = false;
+}
+
+function filterServicosHouses() {
+    const input = document.getElementById('servicos-house-search');
+    const filter = input.value.toUpperCase();
+    const ul = document.getElementById('servicos-modal-house-list');
+    const li = ul.getElementsByTagName('li');
+
+    for (let i = 0; i < li.length; i++) {
+        const txtValue = li[i].textContent || li[i].innerText;
+        if (txtValue.toUpperCase().indexOf(filter) > -1) {
+            li[i].style.display = '';
+        } else {
+            li[i].style.display = 'none';
+        }
+    }
+}
+// Inicialização
+loadSpreadsheets();
+</script>
