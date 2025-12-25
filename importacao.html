@@ -61,14 +61,14 @@
             <div id="alerts"></div>
 
             <div class="form-section">
+                <h2>Opções de Serviços</h2>
+                <div class="form-group">
+                    <button type="button" class="btn btn-secondary" onclick="openServicosModal()" style="width: 100%;">Serviços</button>
+                </div>
+            </div>
+
+            <div class="form-section">
                 <div class="toggles-section">
-                    <div class="toggle-container">
-                        <label class="switch">
-                            <input type="checkbox" id="servicosToggle">
-                            <span class="slider"></span>
-                        </label>
-                        <label for="servicosToggle">Serviços</label>
-                    </div>
                     <div class="toggle-container">
                         <label class="switch">
                             <input type="checkbox" id="protestoToggle">
@@ -86,6 +86,14 @@
                 </div>
             </div>
 
+            <div id="servicosResponsavelSection" class="form-section" style="display: none;">
+                <h2>Responsável pelo Serviço</h2>
+                <div class="form-group">
+                    <label for="servicosResponsavel">Responsável:</label>
+                    <input type="text" id="servicosResponsavel" placeholder="Digite o nome do responsável" required>
+                </div>
+            </div>
+
             <div id="dataSection" class="form-section" style="display: none;">
                 <h2>Dados por HOUSE</h2>
                 <div id="housesData"></div>
@@ -99,7 +107,23 @@
     </div>
 
     <?!= include('editor-modal.html'); ?>
-    <?!= include('servicos-modal.html'); ?>
+    <div id="servicos-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Selecionar HOUSE para Serviços</h2>
+                <span class="close-button" onclick="closeServicosModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <input type="text" id="servicos-house-search" onkeyup="filterServicosHouses()" placeholder="Buscar HOUSE...">
+                <ul id="servicos-modal-house-list" class="house-list">
+                    <!-- A lista de HOUSEs será preenchida dinamicamente -->
+                </ul>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeServicosModal()">Fechar</button>
+            </div>
+        </div>
+    </div>
     <?!= include('main.js'); ?>
 </body>
 </html>
