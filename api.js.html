@@ -1,0 +1,47 @@
+<script>
+    // Funções de comunicação com o backend (Google Apps Script)
+    function loadSpreadsheetsApi(viewName) {
+        return new Promise((resolve, reject) => {
+            google.script.run
+                .withSuccessHandler(resolve)
+                .withFailureHandler(reject)
+                .getSpreadsheets(viewName);
+        });
+    }
+
+    function checkHouseExistsApi(spreadsheetId, house) {
+        return new Promise((resolve, reject) => {
+            google.script.run
+                .withSuccessHandler(resolve)
+                .withFailureHandler(reject)
+                .checkHouseExists(spreadsheetId, house);
+        });
+    }
+
+    function saveEntriesApi(payload) {
+        return new Promise((resolve, reject) => {
+            google.script.run
+                .withSuccessHandler(resolve)
+                .withFailureHandler(reject)
+                .saveEntries(payload);
+        });
+    }
+
+    function getHousesFromSpreadsheetApi(spreadsheetId) {
+        return new Promise((resolve, reject) => {
+            google.script.run
+                .withSuccessHandler(resolve)
+                .withFailureHandler(reject)
+                .getHousesFromSpreadsheet(spreadsheetId);
+        });
+    }
+
+    function getDataForHouseApi(spreadsheetId, house) {
+        return new Promise((resolve, reject) => {
+            google.script.run
+                .withSuccessHandler(resolve)
+                .withFailureHandler(reject)
+                .getDataForHouse(spreadsheetId, house);
+        });
+    }
+</script>

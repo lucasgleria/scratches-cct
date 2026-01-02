@@ -1,0 +1,78 @@
+<script>
+    // Funções de validação
+    function validateMAWB(mawb) {
+        let normalized = mawb.trim();
+
+        if (!normalized) {
+            return { valid: false, message: 'MAWB é obrigatório' };
+        }
+
+        // Remove o hífen para validação
+        normalized = normalized.replace(/-/g, '');
+
+        if (!/^\d+$/.test(normalized)) {
+            return { valid: false, message: 'MAWB deve conter apenas números' };
+        }
+
+        if (normalized.length !== 11) {
+            return { valid: false, message: 'MAWB deve ter exatamente 11 dígitos' };
+        }
+
+        return { valid: true };
+    }
+
+    function validateHOUSE(house) {
+        const normalized = house.trim();
+
+        if (!normalized) {
+            return { valid: false, message: 'HOUSE é obrigatório' };
+        }
+
+        // Length check is now handled by the stripping logic in addHouses
+        return { valid: true };
+    }
+
+    function showFieldError(fieldId, errorId, message) {
+        const field = document.getElementById(fieldId);
+        const errorDiv = document.getElementById(errorId);
+
+        field.classList.add('input-error');
+        field.classList.remove('input-valid');
+        errorDiv.innerHTML = message; // Use innerHTML to render <br> tags
+        errorDiv.style.display = 'block';
+    }
+
+    function clearFieldError(fieldId, errorId) {
+        const field = document.getElementById(fieldId);
+        const errorDiv = document.getElementById(errorId);
+
+        field.classList.remove('input-error');
+        field.classList.add('input-valid');
+        errorDiv.style.display = 'none';
+    }
+
+    // Mostra alertas
+    function showAlert(message, type) {
+        const alertsContainer = document.getElementById('alerts');
+        const alertClass = type === 'success' ? 'alert-success' : 'alert-error';
+
+        const alertDiv = document.createElement('div');
+        alertDiv.className = `alert ${alertClass}`;
+        alertDiv.innerHTML = `
+            ${message}
+            <button type="button" onclick="this.parentElement.remove()"
+                    style="float: right; background: none; border: none; font-size: 18px; cursor: pointer;">
+                ×
+            </button>
+        `;
+
+        alertsContainer.appendChild(alertDiv);
+
+        // Remove automaticamente após 5 segundos
+        setTimeout(() => {
+            if (alertDiv.parentElement) {
+                alertDiv.remove();
+            }
+        }, 5000);
+    }
+</script>
