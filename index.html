@@ -87,12 +87,16 @@
                         oldScript.remove();
                     }
 
-                    // Find the new script, create a new script element, and append it to the body
-                    const scriptTag = app.querySelector('script');
-                    if (scriptTag) {
+                    // Find all script tags, concatenate their content, and append as a single script
+                    const scriptTags = app.querySelectorAll('script');
+                    if (scriptTags.length > 0) {
                         const newScript = document.createElement('script');
                         newScript.id = 'dynamic-view-script';
-                        newScript.textContent = scriptTag.textContent;
+                        let combinedScript = '';
+                        scriptTags.forEach(tag => {
+                            combinedScript += tag.textContent;
+                        });
+                        newScript.textContent = combinedScript;
                         document.body.appendChild(newScript);
                     }
                 })
