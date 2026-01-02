@@ -81,24 +81,18 @@
                     const app = document.getElementById('app');
                     app.innerHTML = html;
 
-                    // Remove the old script to prevent conflicts
-                    const oldScript = document.getElementById('dynamic-view-script');
-                    if (oldScript) {
-                        oldScript.remove();
-                    }
+                    // Remove any previously injected dynamic scripts
+                    const oldScripts = document.querySelectorAll('.dynamic-view-script');
+                    oldScripts.forEach(s => s.remove());
 
-                    // Find all script tags, concatenate their content, and append as a single script
+                    // Find all script tags from the loaded content and append them individually
                     const scriptTags = app.querySelectorAll('script');
-                    if (scriptTags.length > 0) {
+                    scriptTags.forEach(tag => {
                         const newScript = document.createElement('script');
-                        newScript.id = 'dynamic-view-script';
-                        let combinedScript = '';
-                        scriptTags.forEach(tag => {
-                            combinedScript += tag.textContent;
-                        });
-                        newScript.textContent = combinedScript;
+                        newScript.classList.add('dynamic-view-script'); // Add class for easy removal later
+                        newScript.textContent = tag.textContent;
                         document.body.appendChild(newScript);
-                    }
+                    });
                 })
                 .withFailureHandler(function(error) {
                     console.error('Error loading view:', error);
